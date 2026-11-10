@@ -23,6 +23,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.oustery.opencodephone.AppGraph
@@ -67,6 +69,7 @@ import io.github.oustery.opencodephone.core.designsystem.OcInfoRow
 import io.github.oustery.opencodephone.core.designsystem.OcSectionHeader
 import io.github.oustery.opencodephone.core.designsystem.OcStatusChip
 import io.github.oustery.opencodephone.core.model.ProviderAuthPrompt
+import io.github.oustery.opencodephone.core.linuxenv.ServerState
 import io.github.oustery.opencodephone.core.settings.ServerMode
 import io.github.oustery.opencodephone.ui.common.VmFactory
 
@@ -205,12 +208,28 @@ fun SettingsScreen(graph: AppGraph) {
                             OutlinedButton(onClick = vm::cancelServerChanges, enabled = state.serverDirty) { Text(stringResource(R.string.action_cancel)) }
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { vm.testConnection() }, enabled = !state.serverDirty) {
+                            OutlinedButton(
+                                onClick = { vm.testConnection() },
+                                enabled = !state.serverDirty && !state.connectionTesting,
+                            ) {
+                                // Inline progress while the health check runs
+                                // (UI audit B4); the button locks for the test.
+                                if (state.connectionTesting) {
+                                    CircularWavyProgressIndicator(modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
                                 Text(stringResource(R.string.settings_server_test))
                             }
                             OcStatusChip(
                                 text = state.serverStateLabel.ifEmpty { "—" },
-                                tone = OcChipTone.NEUTRAL,
+                                tone = when (state.serverState) {
+                                    // Chip tone follows the real server state
+                                    // (UI audit B4) instead of a permanent
+                                    // neutral label.
+                                    is ServerState.Running -> OcChipTone.PRIMARY
+                                    is ServerState.Failed -> OcChipTone.ERROR
+                                    else -> OcChipTone.NEUTRAL
+                                },
                             )
                         }
                         if (state.server.mode == ServerMode.LOCAL) {
