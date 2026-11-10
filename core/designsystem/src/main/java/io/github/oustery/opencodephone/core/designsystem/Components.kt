@@ -378,8 +378,9 @@ fun OcSkeletonRow(
     widthFraction: Float = 1f,
 ) {
     // Reduced motion: a static half-transparent placeholder instead of the
-    // infinite pulse (UI audit C4).
-    val alpha: State<Float> = if (rememberReducedMotion()) {
+    // infinite pulse (UI audit C4). The name avoids shadowing
+    // GraphicsLayerScope.alpha inside the layer block below.
+    val pulseAlpha: State<Float> = if (rememberReducedMotion()) {
         remember { mutableStateOf(0.7f) }
     } else {
         rememberInfiniteTransition(label = "skeleton-pulse").animateFloat(
@@ -396,7 +397,7 @@ fun OcSkeletonRow(
         modifier = modifier
             .fillMaxWidth(widthFraction)
             .height(height)
-            .graphicsLayer { alpha = alpha.value }
+            .graphicsLayer { alpha = pulseAlpha.value }
             .clearAndSetSemantics { },
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
