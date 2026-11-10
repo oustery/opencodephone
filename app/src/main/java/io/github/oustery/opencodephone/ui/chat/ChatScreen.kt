@@ -25,6 +25,8 @@ import io.github.oustery.opencodephone.core.designsystem.OcDisclosure
 import io.github.oustery.opencodephone.core.designsystem.AppMessageShapes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,14 +45,17 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -97,7 +102,7 @@ import io.github.oustery.opencodephone.core.model.UiPart
 import io.github.oustery.opencodephone.ui.common.VmFactory
 import java.net.URLDecoder
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(graph: AppGraph, onOpenSettings: () -> Unit) {
     val vm: ChatViewModel = viewModel(factory = VmFactory.of { ChatViewModel(graph) })
@@ -325,14 +330,28 @@ private fun ChatTimeline(vm: ChatViewModel, state: ChatUiState) {
                         } else if (request.title.isNotBlank()) {
                             Text(request.title, style = MaterialTheme.typography.bodySmall)
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { vm.respondPermission("once") }) {
+                        // Action hierarchy instead of three equal text buttons
+                        // (UI audit C7): the recommended once-grant is the
+                        // primary action, "always" is the quieter outline
+                        // variant, and the rejection carries the error tone.
+                        // A wrapping row keeps the longer ru labels intact on
+                        // narrow screens.
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            FilledTonalButton(onClick = { vm.respondPermission("once") }) {
                                 Text(stringResource(R.string.chat_permission_once))
                             }
-                            TextButton(onClick = { vm.respondPermission("always") }) {
+                            OutlinedButton(onClick = { vm.respondPermission("always") }) {
                                 Text(stringResource(R.string.chat_permission_always))
                             }
-                            TextButton(onClick = { vm.respondPermission("reject") }) {
+                            TextButton(
+                                onClick = { vm.respondPermission("reject") },
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error,
+                                ),
+                            ) {
                                 Text(stringResource(R.string.chat_permission_deny))
                             }
                         }
