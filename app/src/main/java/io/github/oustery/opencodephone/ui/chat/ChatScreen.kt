@@ -618,6 +618,10 @@ private fun MessageBubble(message: UiMessage, onCopy: (String) -> Unit, onRevert
                 // Long-press on a user message offers the revert action (F-014).
                 .then(
                     if (onRevert != null) {
+                        // Long-press stays as the shortcut; the audit flagged
+                        // it as unreliable next to the selection container, so
+                        // the row button above is the authoritative affordance
+                        // (UI audit C9).
                         Modifier.combinedClickable(
                             role = Role.Button,
                             onClick = {},
@@ -630,7 +634,7 @@ private fun MessageBubble(message: UiMessage, onCopy: (String) -> Unit, onRevert
                 ),
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                message.parts.forEach { part -> PartView(part, onCopy) }
+                message.parts.forEach { part -> PartView(part, onCopy, onRevert) }
             }
         }
     }
@@ -638,7 +642,7 @@ private fun MessageBubble(message: UiMessage, onCopy: (String) -> Unit, onRevert
 }
 
 @Composable
-private fun PartView(part: UiPart, onCopy: (String) -> Unit) {
+private fun PartView(part: UiPart, onCopy: (String) -> Unit, onRevert: (() -> Unit)? = null) {
     when (part) {
         is UiPart.Text -> Column {
             SelectionText(part.text)
@@ -657,6 +661,19 @@ private fun PartView(part: UiPart, onCopy: (String) -> Unit) {
                         modifier = Modifier.size(15.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                // Explicit revert affordance (UI audit C9): the bubble's
+                // long-press shortcut competes with text selection on user
+                // messages, so the guaranteed path to revert is this button.
+                if (onRevert != null) {
+                    androidx.compose.material3.IconButton(onClick = onRevert) {
+                        Icon(
+                            painterResource(R.drawable.ic_revert),
+                            contentDescription = stringResource(R.string.chat_revert_action),
+                            modifier = Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
