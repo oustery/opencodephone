@@ -880,35 +880,38 @@ private fun AddProviderDialog(
         title = { Text(stringResource(R.string.settings_providers_add)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (!custom) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Every known provider as a selectable chip — no truncation
-                        // (M3E audit E-007: take(8) made azure/amazon-bedrock/
-                        // github-copilot unreachable from the list).
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            known.forEach { id ->
-                                FilterChip(
-                                    selected = providerId == id,
-                                    onClick = {
-                                        providerId = id
-                                        custom = true
-                                    },
-                                    label = { Text(id) },
-                                )
-                            }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Every known provider as a selectable chip — no truncation
+                    // (M3E audit E-007) — and the chips stay visible the whole
+                    // time (UI audit B3): picking one used to swap the whole
+                    // picker for a raw-ID field, which read like the choice was
+                    // undone and forced the user through the custom path.
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        known.forEach { id ->
+                            FilterChip(
+                                selected = !custom && providerId == id,
+                                onClick = {
+                                    providerId = id
+                                    custom = false
+                                },
+                                label = { Text(id) },
+                            )
                         }
-                        Text(
-                            stringResource(R.string.settings_providers_custom),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable { custom = true }.padding(vertical = 10.dp),
-                        )
                     }
-                } else {
+                    Text(
+                        stringResource(R.string.settings_providers_custom),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (custom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { custom = true }.padding(vertical = 10.dp),
+                    )
+                }
+                if (custom) {
+                    // The raw-ID field only appears when the user explicitly
+                    // opts out of the known list (UI audit B3).
                     OutlinedTextField(
                         value = providerId,
                         onValueChange = { providerId = it },
@@ -933,7 +936,7 @@ private fun AddProviderDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(providerId, apiKey) },
-                enabled = providerId.isNotBlank() && apiKey.isNotBlank() && custom,
+                enabled = providerId.isNotBlank() && apiKey.isNotBlank(),
             ) {
                 Text(stringResource(R.string.action_save))
             }
