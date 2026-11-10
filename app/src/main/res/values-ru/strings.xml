@@ -135,6 +135,8 @@
     <string name="settings_providers_hint">API-ключи хранятся шифрованно и передаются серверу opencode при подключении.</string>
     <string name="settings_providers_empty">Ключи провайдеров не настроены.</string>
     <string name="settings_providers_add">Добавить ключ</string>
+    <string name="settings_providers_remove_title">Удалить ключ провайдера</string>
+    <string name="settings_providers_remove_warning">Сохранённый API-ключ для %1$s будет удалён с этого устройства. Его можно добавить снова.</string>
     <string name="settings_providers_custom">Свой провайдер…</string>
     <string name="settings_providers_id">ID провайдера</string>
     <string name="settings_providers_key">API-ключ</string>

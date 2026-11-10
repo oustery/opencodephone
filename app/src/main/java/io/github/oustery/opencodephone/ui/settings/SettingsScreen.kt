@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -100,6 +101,8 @@ fun SettingsScreen(graph: AppGraph) {
         if (uri != null) vm.onImportPicked(uri)
     }
     var confirmClear by remember { mutableStateOf<String?>(null) }
+    // Provider-key removal asks for confirmation first (UI audit B2).
+    var pendingKeyRemoval by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
         LargeFlexibleTopAppBar(
@@ -325,10 +328,13 @@ fun SettingsScreen(graph: AppGraph) {
                                 Text(
                                     "••••" + key.apiKey.takeLast(4),
                                     style = MaterialTheme.typography.bodySmall,
-                                    fontFamily = FontFamily.Monospace,
+                                    fontFamily = AppFonts.Code,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                TextButton(onClick = { vm.removeProviderKey(key.providerId) }) {
+                                // Deleting credentials is destructive: confirm
+                                // first and paint the action in the error tone
+                                // (UI audit B2).
+                                TextButton(onClick = { pendingKeyRemoval = key.providerId }) {
                                     Text(stringResource(R.string.action_delete))
                                 }
                             }
@@ -538,6 +544,27 @@ fun SettingsScreen(graph: AppGraph) {
             known = KNOWN_PROVIDERS,
             onSave = { id, key -> vm.saveProviderKey(id, key) },
             onDismiss = { vm.showAddProvider(false) },
+        )
+    }
+    pendingKeyRemoval?.let { providerId ->
+        // Destructive action confirmation (UI audit B2): erasing stored
+        // credentials must never be a single tap.
+        AlertDialog(
+            onDismissRequest = { pendingKeyRemoval = null },
+            title = { Text(stringResource(R.string.settings_providers_remove_title)) },
+            text = { Text(stringResource(R.string.settings_providers_remove_warning, providerId)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingKeyRemoval = null
+                        vm.removeProviderKey(providerId)
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingKeyRemoval = null }) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
     }
     state.accountAuth?.let { auth ->
