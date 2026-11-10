@@ -1,5 +1,6 @@
 package io.github.oustery.opencodephone.ui.settings
 
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.text.KeyboardOptions
@@ -482,28 +483,32 @@ fun SettingsScreen(graph: AppGraph) {
                 OcSectionHeader(stringResource(R.string.settings_appearance_header))
                 Card(shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OcToggleableRow(
-                            checked = state.dynamicColor,
-                            onCheckedChange = { enabled ->
-                                // Confirmation haptic, same pattern as mode switch (E-010).
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                vm.setDynamicColor(enabled)
-                            },
-                            role = Role.Switch,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(stringResource(R.string.settings_appearance_dynamic), style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    stringResource(R.string.settings_appearance_dynamic_hint),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // Dynamic color needs Android 12+ (API 31); below that
+                        // the switch is dead weight — hidden (UI audit C8).
+                        if (Build.VERSION.SDK_INT >= 31) {
+                            OcToggleableRow(
+                                checked = state.dynamicColor,
+                                onCheckedChange = { enabled ->
+                                    // Confirmation haptic, same pattern as mode switch (E-010).
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    vm.setDynamicColor(enabled)
+                                },
+                                role = Role.Switch,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.settings_appearance_dynamic), style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        stringResource(R.string.settings_appearance_dynamic_hint),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Switch(
+                                    checked = state.dynamicColor,
+                                    onCheckedChange = null,
                                 )
                             }
-                            Switch(
-                                checked = state.dynamicColor,
-                                onCheckedChange = null,
-                            )
                         }
                     }
                 }
