@@ -51,6 +51,7 @@
     <string name="chat_question_multi_hint">Select all that apply</string>
     <string name="chat_question_custom">Custom answer…</string>
     <string name="chat_question_answer">Answer</string>
+    <string name="chat_question_answer_hint">Answer every question — pick an option or type your own.</string>
     <string name="chat_question_skip">Skip</string>
     <string name="chat_input_hint">Ask the agent…</string>
     <string name="chat_attach">Attach file</string>
