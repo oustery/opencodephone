@@ -70,6 +70,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -342,7 +343,23 @@ private fun ChatTimeline(vm: ChatViewModel, state: ChatUiState) {
             }
         }
 
-        state.error?.let { error ->
+        state.error?.let { raw ->
+            // Frequent network failure categories get a localized headline;
+            // the raw exception text stays below as the secondary detail
+            // (UI audit C2). Unrecognized messages keep the raw-only banner.
+            val headline = when {
+                raw.contains("timeout", ignoreCase = true) || raw.contains("timed out", ignoreCase = true) ->
+                    stringResource(R.string.chat_error_timeout_title)
+                raw.contains("401") || raw.contains("unauthorized", ignoreCase = true) ->
+                    stringResource(R.string.chat_error_auth_title)
+                raw.contains("403") || raw.contains("forbidden", ignoreCase = true) ->
+                    stringResource(R.string.chat_error_access_title)
+                raw.contains("refused", ignoreCase = true) ||
+                    raw.contains("failed to connect", ignoreCase = true) ||
+                    raw.contains("unable to resolve", ignoreCase = true) ->
+                    stringResource(R.string.chat_error_connect_title)
+                else -> null
+            }
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.errorContainer,
@@ -350,7 +367,19 @@ private fun ChatTimeline(vm: ChatViewModel, state: ChatUiState) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             ) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (headline == null) {
+                            Text(raw, style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text(headline, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                raw,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                     TextButton(onClick = { vm.dismissError() }) { Text(stringResource(R.string.action_dismiss)) }
                 }
             }

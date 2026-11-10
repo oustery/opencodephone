@@ -40,6 +40,12 @@
     <string name="chat_offline_body">The OpenCode server is not running. Wait for the environment to start or check Settings.</string>
     <string name="chat_offline_settings">Check settings</string>
     <string name="chat_error_title">Connection error</string>
+    <!-- Friendly headlines for frequent failure categories (UI audit C2);
+         the raw exception text follows in the banner as the detail line. -->
+    <string name="chat_error_timeout_title">The server did not respond in time</string>
+    <string name="chat_error_connect_title">Could not reach the OpenCode server</string>
+    <string name="chat_error_auth_title">Authorization failed (HTTP 401)</string>
+    <string name="chat_error_access_title">Access denied (HTTP 403)</string>
     <string name="chat_connected">opencode %1$s</string>
     <string name="chat_empty_title">New conversation</string>
     <string name="chat_empty_body">Ask the agent to explain the codebase, add a feature or fix a bug — it edits files and runs commands inside your workspace.</string>
