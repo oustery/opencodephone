@@ -165,6 +165,9 @@ fun SettingsScreen(graph: AppGraph) {
                                 onValueChange = { vm.setPort(it) },
                                 label = { Text(stringResource(R.string.settings_server_port)) },
                                 singleLine = true,
+                                // Digits-only IME (UI audit A5); non-digits are
+                                // dropped in the view model.
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 shape = MaterialTheme.shapes.small,
                             )
