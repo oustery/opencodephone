@@ -245,6 +245,8 @@
     <string name="state_collapsed">Свёрнуто</string>
     <string name="chat_reasoning">Рассуждение</string>
     <string name="chat_tool_output">Вывод инструмента</string>
+    <!-- Уведомление об усечении предпросмотра вывода/ошибки инструмента (UI аудит C3). -->
+    <string name="chat_tool_output_truncated">… показаны первые %1$d символов</string>
     <string name="settings_server_help">Как работает управление сервером</string>
     <string name="bootstrap_choice_title">Как вы хотите использовать OpenCode?</string>
     <string name="bootstrap_choice_local">Установить локальное окружение</string>

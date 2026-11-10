@@ -272,6 +272,8 @@
     <string name="state_collapsed">Collapsed</string>
     <string name="chat_reasoning">Reasoning</string>
     <string name="chat_tool_output">Tool output</string>
+    <!-- Truncation notice for tool output/error previews (UI audit C3). -->
+    <string name="chat_tool_output_truncated">… showing the first %1$d characters</string>
     <string name="settings_server_help">How server controls work</string>
     <string name="settings_backup_header">Settings backup</string>
     <string name="settings_backup_hint">Exports non-secret settings — server address (without the password), Git identity (without the token), model choice, appearance and the onboarding choice — into a JSON file. Import replaces those settings; secrets are never exported, imported or overwritten.</string>

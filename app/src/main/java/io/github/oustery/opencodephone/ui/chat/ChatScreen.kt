@@ -64,6 +64,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -742,10 +743,7 @@ private fun ToolCard(part: UiPart.Tool) {
                     collapsedDescription = stringResource(R.string.state_collapsed),
                 ) {
                     // Copyable without a toolbar (M3E audit E-011).
-                    SelectionContainer {
-                        Text(output.take(4000), style = io.github.oustery.opencodephone.core.designsystem.CodeTypography.output,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    TruncatedCodeText(output, MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             // Failure explanation instead of a bare error chip (F-012).
@@ -756,16 +754,36 @@ private fun ToolCard(part: UiPart.Tool) {
                     expandedDescription = stringResource(R.string.state_expanded),
                     collapsedDescription = stringResource(R.string.state_collapsed),
                 ) {
-                    SelectionContainer {
-                        Text(
-                            error.take(4000),
-                            style = io.github.oustery.opencodephone.core.designsystem.CodeTypography.output,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
+                    TruncatedCodeText(error, MaterialTheme.colorScheme.error)
                 }
             }
         }
+    }
+}
+
+/** Cap before the tool output/error preview is cut (UI audit C3). */
+private const val TOOL_OUTPUT_LIMIT = 4000
+
+/**
+ * Mono code text that says so when it was silently cut at [TOOL_OUTPUT_LIMIT]
+ * (UI audit C3) — the notice is a separate line, so copying keeps the raw
+ * output untouched.
+ */
+@Composable
+private fun TruncatedCodeText(text: String, color: Color) {
+    SelectionContainer {
+        Text(
+            text.take(TOOL_OUTPUT_LIMIT),
+            style = io.github.oustery.opencodephone.core.designsystem.CodeTypography.output,
+            color = color,
+        )
+    }
+    if (text.length > TOOL_OUTPUT_LIMIT) {
+        Text(
+            stringResource(R.string.chat_tool_output_truncated, TOOL_OUTPUT_LIMIT),
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+        )
     }
 }
 
