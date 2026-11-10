@@ -684,7 +684,16 @@ private fun ToolCard(part: UiPart.Tool) {
                     "pending", "running" -> OcChipTone.TERTIARY
                     else -> OcChipTone.NEUTRAL
                 }
-                OcStatusChip(text = part.status, tone = statusTone)
+                // Localized chip label instead of the raw English server status
+                // (UI audit C1); unknown statuses still render verbatim.
+                val statusLabel = when (part.status) {
+                    "completed" -> stringResource(R.string.chat_status_completed)
+                    "error" -> stringResource(R.string.chat_status_error)
+                    "pending" -> stringResource(R.string.chat_status_pending)
+                    "running" -> stringResource(R.string.chat_status_running)
+                    else -> part.status
+                }
+                OcStatusChip(text = statusLabel, tone = statusTone)
             }
             // Local copies are required: title/output live in another Gradle
             // module, so the compiler will not smart-cast the properties.
@@ -1108,7 +1117,15 @@ private fun DiffFileRow(entry: SessionFileDiff) {
                         "modified" -> OcChipTone.TERTIARY
                         else -> OcChipTone.NEUTRAL
                     }
-                    OcStatusChip(text = status, tone = tone)
+                    // Localized chip label instead of the raw English server
+                    // status (UI audit C1); unknown statuses render verbatim.
+                    val label = when (status) {
+                        "added" -> stringResource(R.string.chat_diff_added)
+                        "deleted" -> stringResource(R.string.chat_diff_deleted)
+                        "modified" -> stringResource(R.string.chat_diff_modified)
+                        else -> status
+                    }
+                    OcStatusChip(text = label, tone = tone)
                 }
                 Text(
                     text = "+${entry.additions}",

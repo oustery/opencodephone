@@ -89,6 +89,15 @@
     <string name="chat_todo_done">Готово</string>
     <string name="chat_todo_cancelled">Отменено</string>
 
+    <!-- Локализованные статусы инструментов и диффов (UI аудит C1) -->
+    <string name="chat_status_pending">Ожидает</string>
+    <string name="chat_status_running">Выполняется</string>
+    <string name="chat_status_completed">Готово</string>
+    <string name="chat_status_error">Ошибка</string>
+    <string name="chat_diff_added">Добавлен</string>
+    <string name="chat_diff_modified">Изменён</string>
+    <string name="chat_diff_deleted">Удалён</string>
+
     <!-- Детали сбоя инструмента (функциональный аудит F-012) -->
     <string name="chat_tool_error">Подробности ошибки</string>
 

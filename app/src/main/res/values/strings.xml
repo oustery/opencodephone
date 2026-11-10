@@ -103,6 +103,15 @@
     <string name="chat_todo_done">Completed</string>
     <string name="chat_todo_cancelled">Cancelled</string>
 
+    <!-- Localized tool/diff status chips (UI audit C1) -->
+    <string name="chat_status_pending">Pending</string>
+    <string name="chat_status_running">Running</string>
+    <string name="chat_status_completed">Completed</string>
+    <string name="chat_status_error">Error</string>
+    <string name="chat_diff_added">Added</string>
+    <string name="chat_diff_modified">Modified</string>
+    <string name="chat_diff_deleted">Deleted</string>
+
     <!-- Tool failure details (functional audit F-012) -->
     <string name="chat_tool_error">Error details</string>
 
