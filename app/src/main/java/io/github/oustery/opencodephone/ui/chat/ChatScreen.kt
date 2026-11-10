@@ -269,9 +269,6 @@ private fun ChatTimeline(vm: ChatViewModel, state: ChatUiState) {
             if (listState.firstVisibleItemIndex <= 1 && !listState.isScrollInProgress) listState.scrollToItem(0)
         }
         if (state.busy) LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
-        Text(stringResource(R.string.chat_connected, state.version),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         // Agent task plan for the active session (functional audit F-010).
         if (state.todos.isNotEmpty()) {
@@ -1213,6 +1210,13 @@ private fun ModelsSheet(vm: ChatViewModel, state: ChatUiState) {
         Text(
             stringResource(R.string.chat_models_hint),
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // Server version moved here from the permanent timeline layer, where
+        // it occupied a line under every chat (UI audit C5).
+        Text(
+            stringResource(R.string.chat_connected, state.version),
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.size(8.dp))

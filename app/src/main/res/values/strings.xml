@@ -149,6 +149,11 @@
     <string name="files_share">Share</string>
     <string name="files_preview">Preview</string>
     <string name="files_preview_failed">Preview is not available: %1$s</string>
+    <!-- Preview failure causes (UI audit C5); wrapped by files_preview_failed. -->
+    <string name="files_preview_too_large">the file is larger than 10 MB</string>
+    <string name="files_preview_undecodable">the image could not be decoded</string>
+    <string name="files_preview_unsupported">no preview for this file type</string>
+    <string name="files_preview_read_failed">the file could not be read</string>
     <string name="files_rename_hint">New name (no path separators)</string>
     <string name="files_delete_title">Delete %1$s?</string>
     <string name="files_delete_file_body">This permanently removes the file from the workspace. The change cannot be undone here.</string>

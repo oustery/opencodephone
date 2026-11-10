@@ -269,7 +269,15 @@ fun SettingsScreen(graph: AppGraph) {
                             }
                             state.serverError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                             if (state.serverLog.isNotBlank()) {
-                                Text(state.serverLog.takeLast(3000), style = MaterialTheme.typography.bodySmall)
+                                // Terminal log in the bundled mono face, capped
+                                // in height so it cannot push the page apart
+                                // (UI audit C5).
+                                Text(
+                                    state.serverLog.takeLast(3000),
+                                    style = io.github.oustery.opencodephone.core.designsystem.CodeTypography.output,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.heightIn(max = 220.dp),
+                                )
                             }
                         }
                         state.connectionTest?.let {

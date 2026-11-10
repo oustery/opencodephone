@@ -132,6 +132,11 @@
     <string name="files_share">Поделиться</string>
     <string name="files_preview">Просмотр</string>
     <string name="files_preview_failed">Просмотр недоступен: %1$s</string>
+    <!-- Причины отказа предпросмотра (UI аудит C5); обёрнуты в files_preview_failed. -->
+    <string name="files_preview_too_large">файл больше 10 МБ</string>
+    <string name="files_preview_undecodable">не удалось декодировать изображение</string>
+    <string name="files_preview_unsupported">для этого типа файла нет предпросмотра</string>
+    <string name="files_preview_read_failed">не удалось прочитать файл</string>
 
     <!-- Terminal -->
     <string name="terminal_env_not_ready">Среда Linux ещё не установлена. Сначала завершите настройку на главном экране.</string>
