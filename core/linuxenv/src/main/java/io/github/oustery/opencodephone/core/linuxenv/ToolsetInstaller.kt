@@ -24,6 +24,19 @@ import java.security.MessageDigest
  */
 class ToolsetInstaller(private val callFactory: Call.Factory) {
 
+    companion object {
+        /**
+         * Route a download through an optional HTTPS mirror prefix
+         * (Settings → Environment). Only github.com release assets are
+         * mirrored; anything else (npm, docker registry) keeps its URL.
+         * Integrity never depends on the mirror: archives stay
+         * digest-pinned and checksum-verified.
+         */
+        fun applyMirror(url: String, mirror: String): String =
+            if (mirror.isBlank() || !url.startsWith("https://github.com/")) url
+            else mirror.trim().trimEnd('/') + "/" + url
+    }
+
     /**
      * Download the toolset for [arch] into [layout.downloadDir], verify its
      * sha256 against [Pins.TOOLSET_SHA256] and extract it into the rootfs.
@@ -31,11 +44,12 @@ class ToolsetInstaller(private val callFactory: Call.Factory) {
     suspend fun install(
         layout: EnvLayout,
         arch: String,
+        mirror: String = "",
         onProgress: (read: Long, total: Long) -> Unit,
     ) = withContext(Dispatchers.IO) {
         val digest = Pins.TOOLSET_SHA256[arch]
             ?: error("No toolset pinned for architecture $arch")
-        val url = Pins.TOOLSET_URL_PREFIX + arch + Pins.TOOLSET_URL_SUFFIX
+        val url = applyMirror(Pins.TOOLSET_URL_PREFIX + arch + Pins.TOOLSET_URL_SUFFIX, mirror)
         val archive = File(layout.downloadDir, "toolset-$arch.tar.gz")
 
         val sha = MessageDigest.getInstance("SHA-256")

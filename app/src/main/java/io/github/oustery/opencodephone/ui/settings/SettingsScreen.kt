@@ -97,6 +97,9 @@ private val KNOWN_PROVIDERS = listOf(
     "deepseek", "mistral", "xai", "azure", "amazon-bedrock", "github-copilot",
 )
 
+/** Mirror prefix for GitHub release downloads (Settings → Environment). */
+private const val MIRROR_GHPROXY_NET = "https://ghproxy.net"
+
 /**
  * Groups of the redesigned settings screen (Android-Settings pattern): a
  * short root list of [OcGroupCard]s, each opening one focused sub-page.
@@ -711,6 +714,63 @@ private fun GitPage(vm: SettingsViewModel, state: SettingsUiState, onBack: () ->
                         )
                     }
                 }
+
+                // ---- Network & cloning --------------------------------------
+                OcSectionHeader(stringResource(R.string.settings_git_network_header))
+                Card(shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OcToggleableRow(
+                            checked = state.git.shallowClone,
+                            onCheckedChange = vm::setGitShallow,
+                            role = Role.Switch,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.settings_git_shallow), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    stringResource(R.string.settings_git_shallow_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(checked = state.git.shallowClone, onCheckedChange = null)
+                        }
+                        OcToggleableRow(
+                            checked = state.git.sslVerify,
+                            onCheckedChange = vm::setGitSslVerify,
+                            role = Role.Switch,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.settings_git_ssl), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    stringResource(
+                                        if (state.git.sslVerify) R.string.settings_git_ssl_hint
+                                        else R.string.settings_git_ssl_warning,
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (state.git.sslVerify) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.error,
+                                )
+                            }
+                            Switch(checked = state.git.sslVerify, onCheckedChange = null)
+                        }
+                        OutlinedTextField(
+                            value = state.git.proxy,
+                            onValueChange = { vm.setGitProxy(it) },
+                            label = { Text(stringResource(R.string.settings_git_proxy)) },
+                            placeholder = { Text(stringResource(R.string.settings_git_proxy_placeholder)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.small,
+                        )
+                        Text(
+                            stringResource(R.string.settings_git_proxy_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 Spacer(Modifier.height(16.dp))
             }
         }
@@ -744,6 +804,21 @@ private fun EnvironmentPage(vm: SettingsViewModel, state: SettingsUiState, onBac
                             label = stringResource(R.string.settings_env_workspace),
                             value = vm.workspacePath(),
                         )
+                        state.envInfo?.let { info ->
+                            OcInfoRow(
+                                label = stringResource(R.string.settings_env_cli_version),
+                                value = info.cliVersion ?: stringResource(R.string.settings_env_cli_missing),
+                            )
+                            OcInfoRow(
+                                label = stringResource(R.string.settings_env_debian),
+                                value = "${info.debianSuite} · ${stringResource(R.string.settings_env_size, info.sizeMb)}",
+                            )
+                        }
+                    }
+                }
+
+                Card(shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedTextField(
                             value = state.opencodePin,
                             onValueChange = { vm.setOpencodePin(it) },
@@ -757,6 +832,60 @@ private fun EnvironmentPage(vm: SettingsViewModel, state: SettingsUiState, onBac
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+
+                        // Download mirror for GitHub release assets: a transport
+                        // fix for networks where github.com stalls. Integrity is
+                        // unaffected — every archive stays digest-pinned.
+                        Text(
+                            stringResource(R.string.settings_env_mirror),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = state.downloadMirror.isBlank(),
+                                onClick = { vm.setDownloadMirror("") },
+                                label = { Text(stringResource(R.string.settings_env_mirror_direct)) },
+                            )
+                            FilterChip(
+                                selected = state.downloadMirror == MIRROR_GHPROXY_NET,
+                                onClick = { vm.setDownloadMirror(MIRROR_GHPROXY_NET) },
+                                label = { Text(stringResource(R.string.settings_env_mirror_ghproxy)) },
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.settings_env_mirror_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        // Extra environment variables applied to every guest
+                        // process. Raw text is kept verbatim; invalid lines are
+                        // skipped by the parser and counted below.
+                        OutlinedTextField(
+                            value = state.envExtras,
+                            onValueChange = { vm.setEnvExtras(it) },
+                            label = { Text(stringResource(R.string.settings_env_extras)) },
+                            placeholder = { Text(stringResource(R.string.settings_env_extras_placeholder)) },
+                            minLines = 2,
+                            maxLines = 6,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.small,
+                        )
+                        Text(
+                            if (state.invalidEnvExtras > 0) {
+                                stringResource(R.string.settings_env_extras_invalid, state.invalidEnvExtras)
+                            } else {
+                                stringResource(R.string.settings_env_extras_hint)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (state.invalidEnvExtras > 0) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Card(shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(onClick = { vm.showReinstallConfirm(true) }) {
                             Text(stringResource(R.string.settings_env_reinstall))
                         }
@@ -875,15 +1004,22 @@ private fun AppPage(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { exportLauncher.launch("opencodephone-settings.json") }) {
-                                Text(stringResource(R.string.settings_backup_export))
-                            }
-                            OutlinedButton(onClick = {
+                        // Full-width stacked actions: two long labels share one
+                        // row badly on phone widths (the text wraps mid-word and
+                        // the pair reads as one merged blob).
+                        Button(
+                            onClick = { exportLauncher.launch("opencodephone-settings.json") },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.settings_backup_export))
+                        }
+                        OutlinedButton(
+                            onClick = {
                                 importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
-                            }) {
-                                Text(stringResource(R.string.settings_backup_import))
-                            }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.settings_backup_import))
                         }
                         state.dataMessage?.let {
                             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

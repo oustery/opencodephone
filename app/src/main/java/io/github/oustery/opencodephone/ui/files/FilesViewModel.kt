@@ -377,6 +377,21 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
         )
     }
     private suspend fun migrate(repo: File) = GitAuth.migrateRemotes { exec(repo, it) }
+
+    /** Remote-operation options (SSL verification, proxy) from Settings → Git. */
+    private fun gitNet(): GitAuth.NetOptions {
+        val cfg = graph.settings.gitConfig()
+        return GitAuth.NetOptions(sslVerify = cfg.sslVerify, proxy = cfg.proxy)
+    }
+
+    /**
+     * Idempotent CA-bundle repair before any network git operation (see
+     * [SslTrust]): covers environments installed before the repair existed.
+     * App-side file check, near-zero cost when the bundle already exists.
+     */
+    private suspend fun ensureSslTrust() {
+        withContext(Dispatchers.IO) { SslTrust.ensure(graph.layout.rootfsDir) }
+    }
     private suspend fun refreshGit() {
         val repo = project ?: return
         // -z keeps paths unquoted and NUL-separated, so spaces and exotic
@@ -413,7 +428,15 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
                 }
                 val target = files.checked(File(workspace, name))
                 check(!target.exists()) { graph.appContext.getString(R.string.files_clone_exists) }
-                val result = exec(workspace, GitAuth.command("clone", "--", clean, name), GitAuth.environment(clean, graph.settings.gitConfig().githubToken))
+                ensureSslTrust()
+                // Optional shallow clone (Settings → Git): one commit deep —
+                // much less traffic and disk on mobile networks.
+                val depth = if (graph.settings.gitConfig().shallowClone) listOf("--depth", "1") else emptyList()
+                val result = exec(
+                    workspace,
+                    GitAuth.command(gitNet(), *(listOf("clone") + depth + listOf("--", clean, name)).toTypedArray()),
+                    GitAuth.environment(clean, graph.settings.gitConfig().githubToken),
+                )
                 if (result.exitCode != 0) throw gitFailure(R.string.git_action_clone, result)
                 project = target
                 publishProject(target)
@@ -503,10 +526,11 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
         task(graph.appContext.getString(R.string.files_busy_pushing)) { gitLock.withLock {
             val repo = checkNotNull(project) { graph.appContext.getString(R.string.files_no_repo) }
             migrate(repo)
+            ensureSslTrust()
             val remote = exec(repo, listOf("git", "remote", "get-url", "--push", "origin"))
             check(remote.exitCode == 0) { graph.appContext.getString(R.string.git_no_push_remote) }
             val clean = GitAuth.cleanUrl(remote.output.trim())
-            val result = exec(repo, GitAuth.command("push", clean, "HEAD"), GitAuth.environment(clean, graph.settings.gitConfig().githubToken))
+            val result = exec(repo, GitAuth.command(gitNet(), "push", clean, "HEAD"), GitAuth.environment(clean, graph.settings.gitConfig().githubToken))
             if (result.exitCode != 0) throw gitFailure(R.string.git_action_push, result)
             _state.update {
                 it.copy(
@@ -532,10 +556,11 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
                 require(branch.isNotEmpty() && branch != "HEAD") { graph.appContext.getString(R.string.git_no_branch) }
                 val remote = exec(repo, listOf("git", "remote", "get-url", "origin"))
                 check(remote.exitCode == 0) { graph.appContext.getString(R.string.git_no_remote) }
+                ensureSslTrust()
                 val clean = GitAuth.cleanUrl(remote.output.trim())
                 val result = exec(
                     repo,
-                    GitAuth.command("pull", "--ff-only", clean, branch),
+                    GitAuth.command(gitNet(), "pull", "--ff-only", clean, branch),
                     GitAuth.environment(clean, graph.settings.gitConfig().githubToken),
                 )
                 if (result.exitCode != 0) throw gitFailure(R.string.git_action_pull, result)

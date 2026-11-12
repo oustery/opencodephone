@@ -5,6 +5,7 @@ import android.content.Context
 import io.github.oustery.opencodephone.core.linuxenv.BootstrapManager
 import io.github.oustery.opencodephone.core.linuxenv.EnvLayout
 import io.github.oustery.opencodephone.core.linuxenv.EnvironmentRuntime
+import io.github.oustery.opencodephone.core.linuxenv.SslTrust
 import io.github.oustery.opencodephone.core.model.AgentActivity
 import io.github.oustery.opencodephone.core.opencode.ConnectionConfig
 import io.github.oustery.opencodephone.core.opencode.OpenCodeClient
@@ -44,9 +45,16 @@ class AppGraph(context: Application) {
 
     val layout: EnvLayout = EnvLayout(context)
 
-    val runtime: EnvironmentRuntime = EnvironmentRuntime(layout)
+    val runtime: EnvironmentRuntime = EnvironmentRuntime(
+        layout,
+        extraEnv = { SettingsStore.parseEnvExtras(settings.envExtrasRaw()) },
+    )
 
-    val bootstrap: BootstrapManager = BootstrapManager(layout, runtime, appScope, settings.opencodeVersionPin())
+    val bootstrap: BootstrapManager = BootstrapManager(
+        layout, runtime, appScope,
+        settings.opencodeVersionPin(),
+        mirror = { settings.downloadMirror() },
+    )
 
     private val _serverConfiguration = MutableStateFlow(settings.effectiveServerConfig())
     val serverConfiguration: StateFlow<ServerConfig> = _serverConfiguration
@@ -101,6 +109,14 @@ class AppGraph(context: Application) {
     }
 
     init {
+        appScope.launch(Dispatchers.IO) {
+            // Environments installed before the CA-bundle repair never got a
+            // trust store, so git/curl HTTPS fails with "Problem with the SSL
+            // CA cert". Rebuild it once per launch — this also covers git run
+            // by the agent inside the environment (Files' own operations
+            // re-check before every network call).
+            if (layout.isInstalled()) SslTrust.ensure(layout.rootfsDir)
+        }
         appScope.launch {
             observeServerLifecycle(
                 enabled = localServerEnabled,

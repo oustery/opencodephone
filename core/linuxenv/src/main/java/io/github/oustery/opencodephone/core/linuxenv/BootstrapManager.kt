@@ -43,6 +43,8 @@ class BootstrapManager(
     private val runtime: EnvironmentRuntime,
     private val scope: CoroutineScope,
     private var opencodeVersion: String = Pins.OPENCODE_VERSION,
+    /** HTTPS mirror prefix for GitHub downloads, read at run time from settings. */
+    private val mirror: () -> String = { "" },
 ) {
 
     private val registry = DockerRegistryClient(DockerRegistryClient.longTimeoutClient())
@@ -222,7 +224,7 @@ class BootstrapManager(
                 "Installing tools (git, curl, ripgrep)",
                 message = "Downloading the toolset package",
             )
-            toolset.install(layout, abi.debianArch) { read, total ->
+            toolset.install(layout, abi.debianArch, mirror = mirror()) { read, total ->
                 val fraction = if (total > 0) read.toFloat() / total else null
                 setState(
                     BootstrapPhase.INSTALLING_TOOLS,
@@ -232,6 +234,14 @@ class BootstrapManager(
                 )
             }
             log("toolset ${abi.debianArch} installed")
+
+            // CA trust store: the toolset carries the certificate files but
+            // not the combined bundle (its post-install script never runs).
+            // Without it git/curl fail with "Problem with the SSL CA cert".
+            val caCount = checkNotNull(SslTrust.rebuild(layout.rootfsDir)) {
+                "Toolset ${abi.debianArch} carries no CA certificates"
+            }
+            log("CA bundle rebuilt: $caCount certificates -> ${SslTrust.BUNDLE_PATH}")
 
             // Verify the tools actually run (short, low-CPU command).
             val check = runtime.exec(

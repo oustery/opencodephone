@@ -229,6 +229,15 @@
     <string name="settings_git_email">Git email</string>
     <string name="settings_git_token">GitHub token (PAT)</string>
     <string name="settings_git_hint">The token is used for cloning and pushing private GitHub repositories.</string>
+    <string name="settings_git_network_header">Network &amp; cloning</string>
+    <string name="settings_git_shallow">Shallow clone</string>
+    <string name="settings_git_shallow_hint">Clone only the latest commit (--depth 1): much faster and saves disk space. Pull and push keep working.</string>
+    <string name="settings_git_ssl">Verify SSL certificates</string>
+    <string name="settings_git_ssl_hint">HTTPS connections to git servers are verified against the environment CA bundle.</string>
+    <string name="settings_git_ssl_warning">Verification is off: connections are not checked. Use only with self-signed servers or a trusted proxy.</string>
+    <string name="settings_git_proxy">HTTP proxy for git</string>
+    <string name="settings_git_proxy_placeholder">host:port</string>
+    <string name="settings_git_proxy_hint">Applies to clone, pull and push. Leave empty for a direct connection.</string>
     <string name="settings_env_header">Linux environment</string>
     <string name="settings_env_bootstrap">Bootstrap</string>
     <string name="settings_env_workspace">Workspace</string>
@@ -236,6 +245,18 @@
     <string name="settings_env_pin_hint">Version installed at the next environment reset. Changes apply after reinstall.</string>
     <string name="settings_env_reinstall">Reinstall environment</string>
     <string name="settings_env_reinstall_confirm">This deletes the Debian environment (workspace files are kept) and repeats the full setup. Continue?</string>
+    <string name="settings_env_cli_version">OpenCode CLI</string>
+    <string name="settings_env_cli_missing">not detected</string>
+    <string name="settings_env_debian">Debian</string>
+    <string name="settings_env_size">%1$d MB</string>
+    <string name="settings_env_mirror">Download mirror</string>
+    <string name="settings_env_mirror_direct">GitHub direct</string>
+    <string name="settings_env_mirror_ghproxy">via ghproxy.net</string>
+    <string name="settings_env_mirror_hint">Routes GitHub release downloads (the toolset archives) through the mirror when github.com is slow or unreachable. Integrity is unaffected: every archive stays checksum-verified.</string>
+    <string name="settings_env_extras">Environment variables</string>
+    <string name="settings_env_extras_placeholder">KEY=value</string>
+    <string name="settings_env_extras_hint">One variable per line, applied to every process inside the environment (terminal, git, server). Never exported in backups.</string>
+    <string name="settings_env_extras_invalid">%1$d invalid lines skipped — expected KEY=value with a valid name.</string>
     <string name="settings_appearance_header">Appearance</string>
     <string name="settings_appearance_dynamic">Dynamic color</string>
     <string name="settings_appearance_dynamic_hint">Use wallpaper-based colors on Android 12+. When off, the teal brand palette is applied.</string>

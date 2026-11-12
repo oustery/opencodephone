@@ -6,6 +6,7 @@ import io.github.oustery.opencodephone.AppGraph
 import io.github.oustery.opencodephone.R
 import io.github.oustery.opencodephone.core.linuxenv.ServerState
 import io.github.oustery.opencodephone.core.model.BootstrapState
+import io.github.oustery.opencodephone.core.model.Pins
 import io.github.oustery.opencodephone.core.opencode.ConsolePollResult
 import io.github.oustery.opencodephone.core.opencode.OpenCodeClient
 import io.github.oustery.opencodephone.core.opencode.OpenCodeConsoleClient
@@ -26,6 +27,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+/** Read-only facts about the installed environment (Settings → Environment). */
+data class EnvInfo(
+    val cliVersion: String?,
+    val debianSuite: String,
+    val sizeMb: Long,
+)
+
 data class SettingsUiState(
     val server: ServerConfig = ServerConfig(),
     val providers: List<ProviderKey> = emptyList(),
@@ -37,6 +45,10 @@ data class SettingsUiState(
     val connectionTesting: Boolean = false,
     val serverDirty: Boolean = false,
     val bootstrap: BootstrapState = BootstrapState(),
+    val envInfo: EnvInfo? = null,
+    val downloadMirror: String = "",
+    val envExtras: String = "",
+    val invalidEnvExtras: Int = 0,
     val serverStateLabel: String = "",
     val serverState: ServerState = ServerState.Stopped,
     val serverError: String? = null,
@@ -130,6 +142,7 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
     fun restartServer() { if (!_state.value.serverDirty) graph.restartLocalServer() }
 
     fun reload() {
+        val extrasRaw = settings.envExtrasRaw()
         _state.update {
             it.copy(
                 serverDirty = false,
@@ -141,7 +154,34 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
                 git = settings.gitConfig(),
                 opencodePin = settings.opencodeVersionPin(),
                 account = settings.opencodeAccount(),
+                downloadMirror = settings.downloadMirror(),
+                envExtras = extrasRaw,
+                invalidEnvExtras = SettingsStore.invalidEnvExtrasCount(extrasRaw),
             )
+        }
+        refreshEnvInfo()
+    }
+
+    /** Installed-environment facts (version, suite, disk) computed off the main thread. */
+    private fun refreshEnvInfo() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val info = if (!graph.layout.isInstalled()) {
+                null
+            } else {
+                val stamp = runCatching { graph.layout.installedStamp.readText() }.getOrDefault("")
+                val parts = stamp.split(';').mapNotNull {
+                    val idx = it.indexOf('=')
+                    if (idx <= 0) null else it.substring(0, idx) to it.substring(idx + 1)
+                }.toMap()
+                EnvInfo(
+                    cliVersion = parts["opencode"]?.ifBlank { null },
+                    debianSuite = parts["debian"]?.ifBlank { null } ?: Pins.DEBIAN_SUITE,
+                    sizeMb = graph.layout.baseDir.walkBottomUp()
+                        .filter { it.isFile }
+                        .sumOf { it.length() } / (1024 * 1024),
+                )
+            }
+            _state.update { it.copy(envInfo = info) }
         }
     }
 
@@ -532,6 +572,12 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
 
     fun setGitToken(value: String) = persistGit { it.copy(githubToken = value.trim()) }
 
+    fun setGitShallow(value: Boolean) = persistGit { it.copy(shallowClone = value) }
+
+    fun setGitSslVerify(value: Boolean) = persistGit { it.copy(sslVerify = value) }
+
+    fun setGitProxy(value: String) = persistGit { it.copy(proxy = value.trim()) }
+
     private fun persistGit(transform: (GitConfig) -> GitConfig) {
         val updated = transform(_state.value.git)
         settings.setGitConfig(updated)
@@ -544,6 +590,20 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
         if (value.isBlank()) return
         settings.setOpencodeVersionPin(value.trim())
         _state.update { it.copy(opencodePin = value.trim()) }
+    }
+
+    // -------------------------------------------------------- Environment
+
+    fun setDownloadMirror(url: String) {
+        settings.setDownloadMirror(url)
+        _state.update { it.copy(downloadMirror = url) }
+    }
+
+    fun setEnvExtras(value: String) {
+        settings.setEnvExtrasRaw(value)
+        _state.update {
+            it.copy(envExtras = value, invalidEnvExtras = SettingsStore.invalidEnvExtrasCount(value))
+        }
     }
 
     // -------------------------------------------------------- Appearance
