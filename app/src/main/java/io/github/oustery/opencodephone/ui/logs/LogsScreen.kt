@@ -70,10 +70,10 @@ fun LogsScreen(graph: io.github.oustery.opencodephone.AppGraph) {
                     entry.error?.contains(query, ignoreCase = true) == true)
         }
     }
-    val atBottom by derivedStateOf {
+    val atBottom by remember { derivedStateOf {
         val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()
         last == null || last.index >= listState.layoutInfo.totalItemsCount - 2
-    }
+    } }
     LaunchedEffect(filtered.size, autoScroll) {
         if (autoScroll && filtered.isNotEmpty() && atBottom) {
             listState.scrollToItem(filtered.size - 1)
@@ -82,6 +82,11 @@ fun LogsScreen(graph: io.github.oustery.opencodephone.AppGraph) {
 
     val export = remember(filtered) { AppLog.exportText() }
     val context = androidx.compose.ui.platform.LocalContext.current
+    // Resolve in composition: stringResource() is configuration-aware, while
+    // context.getString() in a composable trips lint's
+    // LocalContextGetResourceValueCall and can go stale on config changes.
+    val shareSubject = stringResource(R.string.logs_share_subject)
+    val shareLabel = stringResource(R.string.logs_share)
 
     ScreenHeader(
         title = stringResource(R.string.logs_title),
@@ -98,13 +103,10 @@ fun LogsScreen(graph: io.github.oustery.opencodephone.AppGraph) {
                 val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                     type = "text/plain"
                     putExtra(android.content.Intent.EXTRA_TEXT, export.take(90_000))
-                    putExtra(
-                        android.content.Intent.EXTRA_SUBJECT,
-                        context.getString(R.string.logs_share_subject),
-                    )
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, shareSubject)
                 }
                 context.startActivity(
-                    android.content.Intent.createChooser(intent, context.getString(R.string.logs_share)),
+                    android.content.Intent.createChooser(intent, shareLabel),
                 )
             }) {
                 Icon(
