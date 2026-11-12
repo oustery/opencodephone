@@ -1,6 +1,7 @@
 package io.github.oustery.opencodephone.core.linuxenv
 
 import kotlinx.coroutines.CancellationException
+import io.github.oustery.opencodephone.core.model.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -68,7 +69,10 @@ class ManagedServer(
                     throw e
                 } catch (e: Exception) {
                     synchronized(guard) {
-                        if (generation == ticket) _state.value = ServerState.Failed("Cannot start OpenCode: ${e.message}")
+                        if (generation == ticket) {
+                            AppLog.error("Server", "cannot start OpenCode", e)
+                            _state.value = ServerState.Failed("Cannot start OpenCode: ${e.message}")
+                        }
                     }
                     return@withLock
                 }
@@ -94,6 +98,7 @@ class ManagedServer(
                         if (process === proc) {
                             process = null
                             config = null
+                            AppLog.error("Server", "OpenCode exited (${proc.exitValue()})")
                             _state.value = ServerState.Failed("OpenCode exited (${proc.exitValue()}). ${_log.value.takeLast(1500)}")
                         }
                     }

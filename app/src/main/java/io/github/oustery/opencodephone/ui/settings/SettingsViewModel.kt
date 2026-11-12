@@ -7,6 +7,7 @@ import io.github.oustery.opencodephone.R
 import io.github.oustery.opencodephone.core.linuxenv.ServerState
 import io.github.oustery.opencodephone.core.model.BootstrapState
 import io.github.oustery.opencodephone.core.model.Pins
+import io.github.oustery.opencodephone.core.model.AppLog
 import io.github.oustery.opencodephone.core.opencode.ConsolePollResult
 import io.github.oustery.opencodephone.core.opencode.OpenCodeClient
 import io.github.oustery.opencodephone.core.opencode.OpenCodeConsoleClient
@@ -222,7 +223,10 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
                     it.copy(serverDirty = changed, server = if (changed) it.server else cfg, connectionTest = "Applied")
                 }
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { _state.update { it.copy(connectionTest = e.message) } }
+            catch (e: Exception) {
+                AppLog.warn("Settings", "connection test failed", e)
+                _state.update { it.copy(connectionTest = e.message) }
+            }
         }
     }
     fun cancelServerChanges() = reload()
@@ -234,7 +238,10 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
                 graph.refreshClient()
                 reload()
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { _state.update { it.copy(connectionTest = e.message) } }
+            catch (e: Exception) {
+                AppLog.warn("Settings", "connection test failed", e)
+                _state.update { it.copy(connectionTest = e.message) }
+            }
         }
     }
 
@@ -262,6 +269,7 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    AppLog.warn("Settings", "sign-in methods fetch failed", e)
                     methodsNote = (e.message ?: e.javaClass.simpleName).take(200)
                     emptyMap()
                 }
@@ -627,7 +635,10 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
                 graph.bootstrap.reset()
                 graph.bootstrap.start(settings.opencodeVersionPin())
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { _state.update { it.copy(connectionTest = e.message) } }
+            catch (e: Exception) {
+                AppLog.warn("Settings", "connection test failed", e)
+                _state.update { it.copy(connectionTest = e.message) }
+            }
         }
     }
 
@@ -755,6 +766,7 @@ class SettingsViewModel(private val graph: AppGraph) : ViewModel() {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
+                AppLog.warn("Settings", "server connection test failed", e)
                 _state.update {
                     it.copy(dataMessage = "Cleanup failed: ${e.message?.take(200) ?: e.javaClass.simpleName}")
                 }
