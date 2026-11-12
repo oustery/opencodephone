@@ -196,6 +196,15 @@
     <string name="settings_git_email">Email Git</string>
     <string name="settings_git_token">Токен GitHub (PAT)</string>
     <string name="settings_git_hint">Токен используется для клонирования и push в приватные GitHub-репозитории.</string>
+    <string name="settings_git_network_header">Сеть и клонирование</string>
+    <string name="settings_git_shallow">Неглубокое клонирование</string>
+    <string name="settings_git_shallow_hint">Клонируется только последний коммит (--depth 1): заметно быстрее и экономит место. Pull и push продолжают работать.</string>
+    <string name="settings_git_ssl">Проверять SSL-сертификаты</string>
+    <string name="settings_git_ssl_hint">HTTPS-соединения с git-серверами проверяются по набору корневых сертификатов окружения.</string>
+    <string name="settings_git_ssl_warning">Проверка выключена: соединения не проверяются. Используйте только с самоподписанными серверами или доверенным прокси.</string>
+    <string name="settings_git_proxy">HTTP-прокси для git</string>
+    <string name="settings_git_proxy_placeholder">хост:порт</string>
+    <string name="settings_git_proxy_hint">Применяется к clone, pull и push. Пусто — прямое соединение.</string>
     <string name="settings_env_header">Окружение Linux</string>
     <string name="settings_env_bootstrap">Установка</string>
     <string name="settings_env_workspace">Рабочая папка</string>
@@ -203,6 +212,18 @@
     <string name="settings_env_pin_hint">Версия будет установлена при следующем сбросе окружения. Изменения применяются после переустановки.</string>
     <string name="settings_env_reinstall">Переустановить окружение</string>
     <string name="settings_env_reinstall_confirm">Это удалит окружение Debian (файлы рабочей папки сохранятся) и повторит полную установку. Продолжить?</string>
+    <string name="settings_env_cli_version">OpenCode CLI</string>
+    <string name="settings_env_cli_missing">не обнаружена</string>
+    <string name="settings_env_debian">Debian</string>
+    <string name="settings_env_size">%1$d МБ</string>
+    <string name="settings_env_mirror">Зеркало загрузок</string>
+    <string name="settings_env_mirror_direct">GitHub напрямую</string>
+    <string name="settings_env_mirror_ghproxy">через ghproxy.net</string>
+    <string name="settings_env_mirror_hint">Загрузки релизов GitHub (архивы инструментов) идут через зеркало, когда github.com медленный или недоступен. Целостность не меняется: каждая загрузка проверяется контрольной суммой.</string>
+    <string name="settings_env_extras">Переменные окружения</string>
+    <string name="settings_env_extras_placeholder">КЛЮЧ=значение</string>
+    <string name="settings_env_extras_hint">По одной переменной на строку; применяются ко всем процессам окружения (терминал, git, сервер). В резервные копии не выгружаются.</string>
+    <string name="settings_env_extras_invalid">Пропущено некорректных строк: %1$d (ожидается КЛЮЧ=значение с допустимым именем).</string>
     <string name="settings_appearance_header">Оформление</string>
     <string name="settings_appearance_dynamic">Динамические цвета</string>
     <string name="settings_appearance_dynamic_hint">Использовать цвета системных обоев на Android 12+. Когда выключено, применяется фирменная бирюзовая палитра.</string>

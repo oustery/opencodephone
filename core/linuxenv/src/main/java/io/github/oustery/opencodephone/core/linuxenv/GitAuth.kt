@@ -6,6 +6,17 @@ import kotlinx.coroutines.withContext
 
 /** Credentials live only in the child environment, never URL, argv, config or helper files. */
 object GitAuth {
+
+    /**
+     * Per-operation network options configured in Settings → Git. Local
+     * operations (status, commit, config) use the defaults; remote ones
+     * (clone, pull, push) receive the user's choices.
+     */
+    data class NetOptions(
+        val sslVerify: Boolean = true,
+        val proxy: String = "",
+    )
+
     fun cleanUrl(value: String): String {
         val uri = URI(value.trim())
         require(uri.scheme == "https" && uri.host != null && uri.rawQuery == null && uri.rawFragment == null) {
@@ -14,10 +25,21 @@ object GitAuth {
         return URI("https", null, uri.host, uri.port, uri.path, null, null).toASCIIString()
     }
 
-    fun command(vararg args: String): List<String> = listOf(
-        "git", "-c", "credential.helper=", "-c", "credential.helper=$helper",
-        "-c", "http.sslVerify=true", "-c", "http.followRedirects=false", "-c", "core.hooksPath=/dev/null",
-    ) + args
+    /** Local (non-network) operations: default options, SSL verification on. */
+    fun command(vararg args: String): List<String> = command(NetOptions(), *args)
+
+    fun command(options: NetOptions, vararg args: String): List<String> = buildList {
+        add("git")
+        add("-c"); add("credential.helper=")
+        add("-c"); add("credential.helper=$helper")
+        add("-c"); add("http.sslVerify=${options.sslVerify}")
+        add("-c"); add("http.followRedirects=false")
+        add("-c"); add("core.hooksPath=/dev/null")
+        if (options.proxy.isNotBlank()) {
+            add("-c"); add("http.proxy=${options.proxy.trim()}")
+        }
+        addAll(args)
+    }
 
     fun environment(url: String, token: String): Map<String, String> {
         val uri = URI(cleanUrl(url))

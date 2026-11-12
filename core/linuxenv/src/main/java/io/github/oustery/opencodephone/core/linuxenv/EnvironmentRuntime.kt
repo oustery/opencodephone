@@ -24,6 +24,8 @@ sealed interface ServerState {
  */
 class EnvironmentRuntime(
     private val layout: EnvLayout,
+    /** User-defined variables (Settings → Environment) merged into every guest process. */
+    private val extraEnv: () -> Map<String, String> = { emptyMap() },
 ) {
 
     private val interactiveGuard = Any()
@@ -98,6 +100,10 @@ class EnvironmentRuntime(
         val pb = ProcessBuilder(argv)
         val environ = pb.environment()
         environ.putAll(PRootCommand.baseEnvironment(layout.tmpDir))
+        // CA trust store for git/curl (see SslTrust), then user-defined
+        // variables, then the per-call env last so callers stay authoritative.
+        environ.putAll(SslTrust.guestBundleEnv)
+        environ.putAll(extraEnv())
         environ.putAll(env)
         if (mergeOutput) pb.redirectErrorStream(true)
         return pb

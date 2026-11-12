@@ -32,6 +32,16 @@ data class GitConfig(
     val userName: String = "",
     val userEmail: String = "",
     val githubToken: String = "",
+    /** Clone with `--depth 1`: faster on mobile networks, less disk (opt-in). */
+    val shallowClone: Boolean = false,
+    /**
+     * HTTPS certificate verification for remote git operations. On by
+     * default; turning it off is an explicit escape hatch for self-signed
+     * servers and proxy MITM setups, shown with a warning in the UI.
+     */
+    val sslVerify: Boolean = true,
+    /** HTTP proxy for git network operations (`host:port`), empty = direct. */
+    val proxy: String = "",
 )
 
 data class ModelSelection(
@@ -234,12 +244,18 @@ class SettingsStore(private val context: Context) {
         userName = prefs.getString(KEY_GIT_NAME, "") ?: "",
         userEmail = prefs.getString(KEY_GIT_EMAIL, "") ?: "",
         githubToken = prefs.getString(KEY_GIT_TOKEN, "") ?: "",
+        shallowClone = prefs.getBoolean(KEY_GIT_SHALLOW, false),
+        sslVerify = prefs.getBoolean(KEY_GIT_SSL_VERIFY, true),
+        proxy = prefs.getString(KEY_GIT_PROXY, "") ?: "",
     )
 
     fun setGitConfig(config: GitConfig) = edit {
         it.putString(KEY_GIT_NAME, config.userName)
         it.putString(KEY_GIT_EMAIL, config.userEmail)
         it.putString(KEY_GIT_TOKEN, config.githubToken)
+        it.putBoolean(KEY_GIT_SHALLOW, config.shallowClone)
+        it.putBoolean(KEY_GIT_SSL_VERIFY, config.sslVerify)
+        it.putString(KEY_GIT_PROXY, config.proxy)
     }
 
     // ---------------------------------------------------------- Versions
@@ -251,6 +267,31 @@ class SettingsStore(private val context: Context) {
 
     fun setOpencodeVersionPin(version: String) = edit {
         it.putString(KEY_OPENCODE_PIN, version)
+    }
+
+    // ------------------------------------------------------- Environment
+
+    /**
+     * Optional HTTPS mirror prefix for GitHub release downloads (toolset
+     * archives) used when github.com is slow or unreachable. Empty = direct.
+     * Only transport changes: every download stays digest-pinned, so a
+     * mirror cannot swap in different bytes.
+     */
+    fun downloadMirror(): String = prefs.getString(KEY_DOWNLOAD_MIRROR, "") ?: ""
+
+    fun setDownloadMirror(url: String) = edit {
+        it.putString(KEY_DOWNLOAD_MIRROR, url.trim())
+    }
+
+    /**
+     * Raw user-defined environment variables applied to every guest process
+     * (terminal, git, server), one `KEY=value` per line. Stored verbatim and
+     * never exported (the values may hold secrets).
+     */
+    fun envExtrasRaw(): String = prefs.getString(KEY_ENV_EXTRAS, "") ?: ""
+
+    fun setEnvExtrasRaw(value: String) = edit {
+        it.putString(KEY_ENV_EXTRAS, value)
     }
 
     fun hasCompletedBootstrap(): Boolean = prefs.getBoolean(KEY_BOOTSTRAP_DONE, false)
@@ -312,7 +353,10 @@ class SettingsStore(private val context: Context) {
                 "git",
                 org.json.JSONObject()
                     .put("userName", git.userName)
-                    .put("userEmail", git.userEmail),
+                    .put("userEmail", git.userEmail)
+                    .put("shallowClone", git.shallowClone)
+                    .put("sslVerify", git.sslVerify)
+                    .put("proxy", git.proxy),
             )
             .put(
                 "model",
@@ -322,6 +366,7 @@ class SettingsStore(private val context: Context) {
             )
             .put("agent", agentName().orEmpty())
             .put("opencodePin", opencodeVersionPin())
+            .put("downloadMirror", downloadMirror())
             .put("dynamicColor", dynamicColor())
             .put("setupChoice", setupChoice().name)
             .put("selectedProject", selectedProject().orEmpty())
@@ -361,6 +406,9 @@ class SettingsStore(private val context: Context) {
                         userName = g.optString("userName", current.userName),
                         userEmail = g.optString("userEmail", current.userEmail),
                         githubToken = current.githubToken,
+                        shallowClone = g.optBoolean("shallowClone", current.shallowClone),
+                        sslVerify = g.optBoolean("sslVerify", current.sslVerify),
+                        proxy = g.optString("proxy", current.proxy),
                     ),
                 )
                 sections++
@@ -378,6 +426,7 @@ class SettingsStore(private val context: Context) {
             val pin = json.optString("opencodePin", Pins.OPENCODE_VERSION)
             if (pin.isNotBlank()) setOpencodeVersionPin(pin)
         }
+        if (json.has("downloadMirror")) setDownloadMirror(json.optString("downloadMirror"))
         if (json.has("dynamicColor")) setDynamicColor(json.optBoolean("dynamicColor", false))
         if (json.has("setupChoice")) {
             runCatching { setSetupChoice(SetupChoice.valueOf(json.getString("setupChoice"))) }
@@ -394,6 +443,32 @@ class SettingsStore(private val context: Context) {
             keys.deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
         }
 
+        /**
+         * Parse user-defined environment variables (`KEY=value`, one per
+         * line, `#` comments). Invalid lines (no `=`, bad key shape) are
+         * skipped — the raw text stays untouched so the user can fix it.
+         */
+        fun parseEnvExtras(raw: String): Map<String, String> = raw.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .mapNotNull { line ->
+                val index = line.indexOf('=')
+                if (index <= 0) return@mapNotNull null
+                val key = line.substring(0, index).trim()
+                if (!key.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))) return@mapNotNull null
+                key to line.substring(index + 1).trim()
+            }
+            .toMap()
+
+        /** Number of non-comment lines that parseEnvExtras has to skip. */
+        fun invalidEnvExtrasCount(raw: String): Int {
+            val lines = raw.lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("#") }
+                .toList()
+            return lines.size - parseEnvExtras(raw).size
+        }
+
         private const val KEY_LOCAL_SERVER_SECRET = "local_server_secret"
         private const val KEY_SERVER_MODE = "server_mode"
         private const val KEY_SERVER_HOST = "server_host"
@@ -407,7 +482,12 @@ class SettingsStore(private val context: Context) {
         private const val KEY_GIT_NAME = "git_user_name"
         private const val KEY_GIT_EMAIL = "git_user_email"
         private const val KEY_GIT_TOKEN = "git_github_token"
+        private const val KEY_GIT_SHALLOW = "git_shallow_clone"
+        private const val KEY_GIT_SSL_VERIFY = "git_ssl_verify"
+        private const val KEY_GIT_PROXY = "git_http_proxy"
         private const val KEY_OPENCODE_PIN = "opencode_version_pin"
+        private const val KEY_DOWNLOAD_MIRROR = "download_mirror"
+        private const val KEY_ENV_EXTRAS = "env_extras_raw"
         private const val KEY_BOOTSTRAP_DONE = "bootstrap_completed"
         private const val KEY_DYNAMIC_COLOR = "dynamic_color"
         private const val KEY_SETUP_CHOICE = "setup_choice"
