@@ -1,15 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launcher adaptive-icon background (light): brand teal diagonal gradient. -->
+<!--
+  Launcher adaptive-icon background: solid warm charcoal (#141413), matching
+  the brand mark color scheme. A flat color keeps every mask shape uniform
+  and adds zero overdraw cost.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startColor="#115E59"
-                android:endColor="#2DD4BF"
-                android:angle="45" />
-        </aapt:attr>
-    </path>
+    <path android:pathData="M0,0h108v108h-108z" android:fillColor="#141413" />
 </vector>
