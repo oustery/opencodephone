@@ -19,6 +19,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.github.oustery.opencodephone.core.designsystem.OcConfirmDialog
+import io.github.oustery.opencodephone.core.designsystem.OcDialogTone
+import io.github.oustery.opencodephone.core.designsystem.OcInputDialog
 import io.github.oustery.opencodephone.core.designsystem.AppFonts
 import io.github.oustery.opencodephone.core.designsystem.CodeTypography
 import androidx.compose.foundation.layout.Arrangement
@@ -130,6 +133,8 @@ fun FilesScreen(graph: AppGraph) {
                     project = state.gitProject,
                     branch = branch,
                     changes = state.gitChanges,
+                    ahead = state.gitAhead,
+                    behind = state.gitBehind,
                     busy = state.busy != null,
                     onOpenCommit = { vm.showCommit(true) },
                     onPull = { vm.pull() },
@@ -252,25 +257,20 @@ fun FilesScreen(graph: AppGraph) {
         )
     }
     deleteFor?.let { entry ->
-        AlertDialog(
-            onDismissRequest = { deleteFor = null },
-            title = { Text(stringResource(R.string.files_delete_title, entry.name)) },
-            text = {
-                Text(
-                    stringResource(
-                        if (entry.isDir) R.string.files_delete_dir_body else R.string.files_delete_file_body,
-                    ),
-                )
+        OcConfirmDialog(
+            title = stringResource(R.string.files_delete_title, entry.name),
+            text = stringResource(
+                if (entry.isDir) R.string.files_delete_dir_body else R.string.files_delete_file_body,
+            ),
+            confirmLabel = stringResource(R.string.action_delete),
+            dismissLabel = stringResource(R.string.action_cancel),
+            icon = painterResource(R.drawable.ic_delete),
+            tone = OcDialogTone.DESTRUCTIVE,
+            onConfirm = {
+                deleteFor = null
+                vm.deleteEntry(entry)
             },
-            confirmButton = {
-                Button(onClick = {
-                    vm.deleteEntry(entry)
-                    deleteFor = null
-                }) { Text(stringResource(R.string.action_delete)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteFor = null }) { Text(stringResource(R.string.action_cancel)) }
-            },
+            onDismiss = { deleteFor = null },
         )
     }
     state.editing?.let { editing ->
@@ -287,21 +287,18 @@ fun FilesScreen(graph: AppGraph) {
             },
         )
         if (confirmDiscard) {
-            AlertDialog(
-                onDismissRequest = { confirmDiscard = false },
-                title = { Text(stringResource(R.string.editor_discard_title)) },
-                text = { Text(stringResource(R.string.editor_discard_body, editing.file.name)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        confirmDiscard = false
-                        vm.closeEditor()
-                    }) { Text(stringResource(R.string.editor_discard_confirm)) }
+            OcConfirmDialog(
+                title = stringResource(R.string.editor_discard_title),
+                text = stringResource(R.string.editor_discard_body, editing.file.name),
+                confirmLabel = stringResource(R.string.editor_discard_confirm),
+                dismissLabel = stringResource(R.string.action_cancel),
+                icon = painterResource(R.drawable.ic_revert),
+                tone = OcDialogTone.DESTRUCTIVE,
+                onConfirm = {
+                    confirmDiscard = false
+                    vm.closeEditor()
                 },
-                dismissButton = {
-                    TextButton(onClick = { confirmDiscard = false }) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
+                onDismiss = { confirmDiscard = false },
             )
         }
     }
@@ -316,6 +313,8 @@ private fun GitBar(
     project: String?,
     branch: String,
     changes: Int,
+    ahead: Int,
+    behind: Int,
     busy: Boolean,
     onOpenCommit: () -> Unit,
     onPull: () -> Unit,
@@ -353,6 +352,14 @@ private fun GitBar(
                     },
                     tone = if (changes == 0) OcChipTone.NEUTRAL else OcChipTone.TERTIARY,
                 )
+                // Sync state at a glance: unpushed / unpulled commits from
+                // the status tracking header (hidden while zero).
+                if (ahead > 0) {
+                    OcStatusChip(text = stringResource(R.string.git_ahead, ahead), tone = OcChipTone.TERTIARY)
+                }
+                if (behind > 0) {
+                    OcStatusChip(text = stringResource(R.string.git_behind, behind), tone = OcChipTone.NEUTRAL)
+                }
                 Button(onClick = onOpenCommit, enabled = changes > 0) {
                     Text(stringResource(R.string.git_commit))
                 }
@@ -525,53 +532,41 @@ private fun FileRow(
 
 @Composable
 private fun CloneDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
-    var url by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.files_clone_title)) },
-        text = {
-            OutlinedTextField(
-                value = url,
-                onValueChange = { url = it },
-                placeholder = { Text("https://github.com/user/repo.git") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+    // Only HTTPS repositories are supported (GitAuth), so reject other
+    // schemes in the field instead of after a failed clone attempt.
+    val httpsError = stringResource(R.string.git_clone_https_needed)
+    OcInputDialog(
+        title = stringResource(R.string.files_clone_title),
+        valueLabel = stringResource(R.string.files_clone_url_label),
+        initial = "",
+        placeholder = "https://github.com/user/repo.git",
+        confirmLabel = stringResource(R.string.files_clone),
+        dismissLabel = stringResource(R.string.action_cancel),
+        icon = painterResource(R.drawable.ic_file),
+        validate = { value ->
+            if (value.trim().startsWith("https://")) null else httpsError
         },
-        confirmButton = {
-            Button(onClick = { onConfirm(url) }, enabled = url.isNotBlank()) {
-                Text(stringResource(R.string.files_clone))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
     )
 }
 
 @Composable
 private fun NewFileDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.files_new_file)) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                placeholder = { Text(stringResource(R.string.files_new_file_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+    val nameError = stringResource(R.string.files_new_file_hint)
+    OcInputDialog(
+        title = stringResource(R.string.files_new_file),
+        valueLabel = stringResource(R.string.files_new_file),
+        initial = "",
+        placeholder = stringResource(R.string.files_new_file_hint),
+        confirmLabel = stringResource(R.string.action_create),
+        dismissLabel = stringResource(R.string.action_cancel),
+        icon = painterResource(R.drawable.ic_add),
+        validate = { value ->
+            if (value.trim().isEmpty() || value.trim() in listOf(".", "..")) nameError else null
         },
-        confirmButton = {
-            Button(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
-                Text(stringResource(R.string.action_create))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
     )
 }
 
@@ -586,6 +581,7 @@ private fun CommitDialog(
     var selected by remember { mutableStateOf(changes.map { it.path }.toSet()) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(painterResource(R.drawable.ic_check), contentDescription = null) },
         title = { Text(stringResource(R.string.git_commit_title)) },
         text = {
             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -656,30 +652,20 @@ private fun RenameFileDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var name by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.files_rename)) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                placeholder = { Text(stringResource(R.string.files_rename_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+    val renameError = stringResource(R.string.files_rename_hint)
+    OcInputDialog(
+        title = stringResource(R.string.files_rename),
+        valueLabel = stringResource(R.string.files_rename),
+        initial = initial,
+        placeholder = stringResource(R.string.files_rename_hint),
+        confirmLabel = stringResource(R.string.action_save),
+        dismissLabel = stringResource(R.string.action_cancel),
+        icon = painterResource(R.drawable.ic_edit),
+        validate = { value ->
+            if (value.trim() == initial) renameError else null
         },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(name) },
-                enabled = name.isNotBlank() && name.trim() != initial,
-            ) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
     )
 }
 

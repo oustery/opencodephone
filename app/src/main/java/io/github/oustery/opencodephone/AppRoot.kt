@@ -5,8 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +42,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -73,6 +76,7 @@ object Routes {
     const val FILES = "files"
     const val TERMINAL = "terminal"
     const val SETTINGS = "settings"
+    const val LOGS = "logs"
 }
 
 /**
@@ -206,6 +210,7 @@ private fun AppNavHost(navController: androidx.navigation.NavHostController, gra
         composable(Routes.FILES) { FilesScreen(graph) }
         composable(Routes.TERMINAL) { TerminalScreen(graph) }
         composable(Routes.SETTINGS) { SettingsScreen(graph) }
+        composable(Routes.LOGS) { io.github.oustery.opencodephone.ui.logs.LogsScreen(graph) }
     }
 }
 
@@ -285,11 +290,41 @@ private fun AppDrawerContent(
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             // Quiet version footer: the drawer doubles as an about glance.
+            // Hidden diagnostics trigger: five taps within four seconds open
+            // the log viewer (deliberately undiscoverable — a support agent
+            // tells the user the gesture when debugging is needed).
+            var taps by androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableIntStateOf(0)
+            }
+            var firstTapAt by androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableLongStateOf(0L)
+            }
+            val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
             Text(
                 text = stringResource(R.string.nav_app_version, BuildConfig.VERSION_NAME),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            val now = System.currentTimeMillis()
+                            if (now - firstTapAt > 4000) {
+                                firstTapAt = now
+                                taps = 1
+                            } else {
+                                taps += 1
+                            }
+                            if (taps == 5) {
+                                taps = 0
+                                haptics.performHapticFeedback(
+                                    androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
+                                )
+                                closeDrawer()
+                                navigateTo(navController, Routes.LOGS)
+                            }
+                        }
+                    },
             )
         }
     }

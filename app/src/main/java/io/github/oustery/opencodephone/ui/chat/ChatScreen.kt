@@ -19,6 +19,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import io.github.oustery.opencodephone.core.designsystem.OcConfirmDialog
+import io.github.oustery.opencodephone.core.designsystem.OcDialogTone
+import io.github.oustery.opencodephone.core.designsystem.OcInputDialog
 import io.github.oustery.opencodephone.core.designsystem.OcActionChip
 import io.github.oustery.opencodephone.core.designsystem.AppFonts
 import io.github.oustery.opencodephone.core.designsystem.MarkdownDefaults
@@ -487,21 +490,17 @@ private fun ChatTimeline(vm: ChatViewModel, state: ChatUiState) {
         }
 
         revertFor?.let { target ->
-            AlertDialog(
-                onDismissRequest = { revertForId = null },
-                title = { Text(stringResource(R.string.chat_revert_title)) },
-                text = { Text(stringResource(R.string.chat_revert_body)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        revertForId = null
-                        vm.revertTo(target.id)
-                    }) { Text(stringResource(R.string.chat_revert_action)) }
+            OcConfirmDialog(
+                title = stringResource(R.string.chat_revert_title),
+                text = stringResource(R.string.chat_revert_body),
+                confirmLabel = stringResource(R.string.chat_revert_action),
+                dismissLabel = stringResource(R.string.action_cancel),
+                icon = painterResource(R.drawable.ic_revert),
+                onConfirm = {
+                    revertForId = null
+                    vm.revertTo(target.id)
                 },
-                dismissButton = {
-                    TextButton(onClick = { revertForId = null }) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
+                onDismiss = { revertForId = null },
             )
         }
     }
@@ -1054,26 +1053,21 @@ private fun SessionsSheet(vm: ChatViewModel, state: ChatUiState) {
         Spacer(Modifier.size(24.dp))
     }
     pendingDelete?.let { session ->
-        AlertDialog(
-            onDismissRequest = { pendingDeleteId = null },
-            title = { Text(stringResource(R.string.chat_session_delete_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        R.string.chat_session_delete_body,
-                        session.title.ifBlank { stringResource(R.string.chat_session_untitled) },
-                    ),
-                )
+        OcConfirmDialog(
+            title = stringResource(R.string.chat_session_delete_title),
+            text = stringResource(
+                R.string.chat_session_delete_body,
+                session.title.ifBlank { stringResource(R.string.chat_session_untitled) },
+            ),
+            confirmLabel = stringResource(R.string.action_delete),
+            dismissLabel = stringResource(R.string.action_cancel),
+            icon = painterResource(R.drawable.ic_delete),
+            tone = OcDialogTone.DESTRUCTIVE,
+            onConfirm = {
+                vm.deleteSession(session.id)
+                pendingDeleteId = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    vm.deleteSession(session.id)
-                    pendingDeleteId = null
-                }) { Text(stringResource(R.string.action_delete)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteId = null }) { Text(stringResource(R.string.action_cancel)) }
-            },
+            onDismiss = { pendingDeleteId = null },
         )
     }
     renaming?.let { session ->
@@ -1090,28 +1084,16 @@ private fun SessionsSheet(vm: ChatViewModel, state: ChatUiState) {
 
 @Composable
 private fun RenameSessionDialog(initial: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    var title by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.chat_session_rename)) },
-        text = {
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                placeholder = { Text(stringResource(R.string.chat_session_rename_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small,
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(title) }, enabled = title.isNotBlank()) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
+    OcInputDialog(
+        title = stringResource(R.string.chat_session_rename),
+        valueLabel = stringResource(R.string.chat_session_rename),
+        initial = initial,
+        placeholder = stringResource(R.string.chat_session_rename_hint),
+        confirmLabel = stringResource(R.string.action_save),
+        dismissLabel = stringResource(R.string.action_cancel),
+        icon = painterResource(R.drawable.ic_edit),
+        onConfirm = onSave,
+        onDismiss = onDismiss,
     )
 }
 

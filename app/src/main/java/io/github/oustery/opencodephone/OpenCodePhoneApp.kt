@@ -7,6 +7,7 @@ import io.github.oustery.opencodephone.core.linuxenv.EnvLayout
 import io.github.oustery.opencodephone.core.linuxenv.EnvironmentRuntime
 import io.github.oustery.opencodephone.core.linuxenv.SslTrust
 import io.github.oustery.opencodephone.core.model.AgentActivity
+import io.github.oustery.opencodephone.core.model.AppLog
 import io.github.oustery.opencodephone.core.opencode.ConnectionConfig
 import io.github.oustery.opencodephone.core.opencode.OpenCodeClient
 import io.github.oustery.opencodephone.core.opencode.OpenCodeConsoleClient
@@ -258,6 +259,8 @@ class OpenCodePhoneApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Diagnostics.install(this)
+        AppLog.info("App", "opencodephone ${BuildConfig.VERSION_NAME} starting")
         retryStartup()
     }
 
@@ -280,6 +283,7 @@ class OpenCodePhoneApp : Application() {
                 throw e
             } catch (e: Exception) {
                 // Do not delete/recreate encrypted prefs or log credential-bearing data.
+                AppLog.error("App", "startup failed", e)
                 android.util.Log.e("OpenCodePhone", "Startup failed (${e.javaClass.simpleName})")
                 _startup.value = AppStartup.Failed
             }

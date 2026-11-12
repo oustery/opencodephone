@@ -52,21 +52,20 @@ class MainActivity : ComponentActivity() {
             OpenCodePhoneTheme(dynamicColor = dynamicColor) {
                 val resetConfirm = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                 if (resetConfirm.value && startup == AppStartup.Failed) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { resetConfirm.value = false },
-                        title = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.startup_reset)) },
-                        text = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.startup_reset_warning)) },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                resetConfirm.value = false
-                                app.retryStartup(resetSecureSettings = true)
-                            }) { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.startup_reset)) }
+                    // Wiping the Keystore-backed settings is irreversible —
+                    // the destructive voice makes that unmistakable.
+                    io.github.oustery.opencodephone.core.designsystem.OcConfirmDialog(
+                        title = androidx.compose.ui.res.stringResource(R.string.startup_reset),
+                        text = androidx.compose.ui.res.stringResource(R.string.startup_reset_warning),
+                        confirmLabel = androidx.compose.ui.res.stringResource(R.string.startup_reset),
+                        dismissLabel = androidx.compose.ui.res.stringResource(R.string.action_cancel),
+                        icon = androidx.compose.ui.res.painterResource(R.drawable.ic_shield),
+                        tone = io.github.oustery.opencodephone.core.designsystem.OcDialogTone.DESTRUCTIVE,
+                        onConfirm = {
+                            resetConfirm.value = false
+                            app.retryStartup(resetSecureSettings = true)
                         },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = { resetConfirm.value = false }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.action_cancel))
-                            }
-                        },
+                        onDismiss = { resetConfirm.value = false },
                     )
                 }
                 when (val state = startup) {

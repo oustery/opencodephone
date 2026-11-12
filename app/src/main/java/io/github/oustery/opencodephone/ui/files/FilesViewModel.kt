@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.oustery.opencodephone.AppGraph
 import io.github.oustery.opencodephone.R
 import io.github.oustery.opencodephone.core.linuxenv.*
+import io.github.oustery.opencodephone.core.model.AppLog
 import io.github.oustery.opencodephone.core.settings.DraftStore
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -32,6 +33,8 @@ import java.util.concurrent.atomic.AtomicLong
     /** True once loaded and the visible tree is empty (empty-state CTA). */
     val workspaceEmpty: Boolean = false,
     val gitBranch: String? = null, val gitChanges: Int = 0,
+    /** Unpushed/unpulled commit counts from the status tracking section. */
+    val gitAhead: Int = 0, val gitBehind: Int = 0,
     val changeList: List<GitChange> = emptyList(),
     val gitProject: String? = null, val editing: EditingFile? = null,
     val showCloneDialog: Boolean = false, val showNewFileDialog: Boolean = false,
@@ -218,6 +221,9 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
             try { block() }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) {
+                // Every failed user action reaches both the message bar and
+                // the diagnostic log — the bar is transient, the log is not.
+                AppLog.error("Files", label ?: "task", e)
                 _state.update {
                     it.copy(
                         message = e.message ?: graph.appContext.getString(R.string.files_op_failed),
@@ -355,6 +361,9 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
     }
     private suspend fun exec(repo: File, args: List<String>, env: Map<String, String> = emptyMap()): ExecResult {
         check(graph.layout.isInstalled()) { "Environment is not ready" }
+        // Full command trace (argv only — credentials travel in the
+        // environment and never enter this list).
+        AppLog.debug("Git", "cwd=${cwd(repo)} -- ${args.joinToString(" ")}")
         return graph.runtime.exec(args, env = env, cwd = cwd(repo))
     }
 
@@ -370,11 +379,40 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
         // nothing (exception audit).
         val detail = result.output.trim().lineSequence()
             .lastOrNull { it.isNotBlank() }?.take(300).orEmpty()
+        AppLog.warn("Git", "exit ${result.exitCode} on ${detail.ifBlank { "no output" }}")
         val context = graph.appContext
-        return IllegalStateException(
-            context.getString(R.string.git_action_failed, context.getString(actionRes), result.exitCode) +
-                if (detail.isEmpty()) "" else ": $detail",
-        )
+        val base = context.getString(R.string.git_action_failed, context.getString(actionRes), result.exitCode) +
+            if (detail.isEmpty()) "" else ": $detail"
+        // Every recognised failure class gets an actionable hint so the next
+        // step is obvious instead of a dead end.
+        val hint = hintFor(detail)?.let { "\n${context.getString(it)}" }.orEmpty()
+        return IllegalStateException(base + hint)
+    }
+
+    /**
+     * Recognise git's most common failure classes and map them to a localized
+     * next-step hint (strings: git_hint_*).
+     */
+    private fun hintFor(detail: String): Int? = when {
+        detail.contains("Please tell me who you are", ignoreCase = true) -> R.string.git_hint_identity
+        detail.contains("Authentication failed", ignoreCase = true) ||
+            detail.contains("could not read Username", ignoreCase = true) ||
+            detail.contains("Invalid username or password", ignoreCase = true) ||
+            detail.contains("403 (", ignoreCase = false) ||
+            detail.contains("401 (", ignoreCase = false) -> R.string.git_hint_auth
+        detail.contains("non-fast-forward", ignoreCase = true) ||
+            detail.contains("fetch first", ignoreCase = true) ||
+            detail.contains("behind its remote counterpart", ignoreCase = true) ||
+            detail.contains("Not possible to fast-forward", ignoreCase = true) ||
+            detail.contains("Diverging", ignoreCase = true) -> R.string.git_hint_diverged
+        detail.contains("does not have any commits yet", ignoreCase = true) -> R.string.git_hint_unborn
+        detail.contains("Could not resolve host", ignoreCase = true) ||
+            detail.contains("Failed to connect", ignoreCase = true) ||
+            detail.contains("Connection", ignoreCase = false) ||
+            detail.contains("timed out", ignoreCase = true) -> R.string.git_hint_network
+        detail.contains("SSL CA cert", ignoreCase = true) ||
+            detail.contains("certificate verify failed", ignoreCase = true) -> R.string.git_hint_ssl
+        else -> null
     }
     private suspend fun migrate(repo: File) = GitAuth.migrateRemotes { exec(repo, it) }
 
@@ -399,9 +437,20 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
         val result = exec(repo, listOf("git", "status", "--porcelain", "-z", "-b"))
         if (result.exitCode != 0) throw gitFailure(R.string.git_action_status, result)
         val entries = result.output.split('\u0000').filter { it.isNotBlank() }
-        val branch = entries.firstOrNull()?.takeIf { it.startsWith("## ") }?.removePrefix("## ")
+        val branchLine = entries.firstOrNull()?.takeIf { it.startsWith("## ") }?.removePrefix("## ")
+        // The status -b header carries tracking info:
+        // "main...origin/main [ahead 1, behind 2]" — split it into a clean
+        // branch name for the chip and unpushed/unpulled counters for the bar.
+        var branch = branchLine.orEmpty()
+        var ahead = 0
+        var behind = 0
+        if (branchLine != null) {
+            Regex("\\[ahead (\\d+)").find(branchLine)?.groupValues?.get(1)?.toIntOrNull()?.let { ahead = it }
+            Regex("\\[behind (\\d+)").find(branchLine)?.groupValues?.get(1)?.toIntOrNull()?.let { behind = it }
+            branch = branchLine.substringBefore("...").substringBefore(' ').ifBlank { branchLine }
+        }
         val changes = entries
-            .drop(if (branch != null) 1 else 0)
+            .drop(if (branchLine != null) 1 else 0)
             .map { entry ->
                 var path = entry.drop(3)
                 // Rename entries read "XY old -> new"; staging the new path
@@ -412,6 +461,7 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
         _state.update {
             it.copy(
                 gitProject = repo.name, gitBranch = branch,
+                gitAhead = ahead, gitBehind = behind,
                 changeList = changes, gitChanges = changes.size,
             )
         }
@@ -438,6 +488,7 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
                     GitAuth.environment(clean, graph.settings.gitConfig().githubToken),
                 )
                 if (result.exitCode != 0) throw gitFailure(R.string.git_action_clone, result)
+                AppLog.info("Git", "cloned ${name} from ${GitAuth.cleanUrl(url)}")
                 project = target
                 publishProject(target)
                 refreshGit()
@@ -451,15 +502,21 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
         task(graph.appContext.getString(R.string.files_busy_committing)) { gitLock.withLock {
             val repo = checkNotNull(project) { graph.appContext.getString(R.string.files_no_repo) }
             migrate(repo)
+            val identity = graph.settings.gitConfig()
+            // Fail with a setting-destination hint before git's cryptic
+            // "Please tell me who you are" can appear (git hardening).
+            require(identity.userName.isNotBlank() && identity.userEmail.isNotBlank()) {
+                graph.appContext.getString(R.string.git_need_identity)
+            }
             // Stage only what the user picked instead of a blind `git add -A`
             // (functional audit F-008).
             require(selectedPaths.isNotEmpty()) { graph.appContext.getString(R.string.git_commit_no_files) }
             val added = exec(repo, listOf("git", "add", "--") + selectedPaths.toList())
             if (added.exitCode != 0) throw gitFailure(R.string.git_action_add, added)
-            val identity = graph.settings.gitConfig()
             val args = listOf("-c", "user.name=${identity.userName}", "-c", "user.email=${identity.userEmail}", "commit", "-m", message)
             val committed = exec(repo, GitAuth.command(*args.toTypedArray()))
             if (committed.exitCode != 0) throw gitFailure(R.string.git_action_commit, committed)
+            AppLog.info("Git", "committed ${selectedPaths.size} file(s) on ${_state.value.gitBranch.orEmpty()}")
             refreshGit()
         } }
     }
@@ -532,9 +589,19 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
             val clean = GitAuth.cleanUrl(remote.output.trim())
             val result = exec(repo, GitAuth.command(gitNet(), "push", clean, "HEAD"), GitAuth.environment(clean, graph.settings.gitConfig().githubToken))
             if (result.exitCode != 0) throw gitFailure(R.string.git_action_push, result)
+            // git says "Everything up-to-date" with exit 0 when the remote
+            // already has HEAD; report that instead of a fake success line.
+            val upToDate = result.output.contains("up to date", ignoreCase = true) ||
+                result.output.contains("up-to-date", ignoreCase = true)
+            AppLog.info(
+                "Git",
+                if (upToDate) "push: remote already up to date" else "pushed HEAD to $clean",
+            )
             _state.update {
                 it.copy(
-                    message = graph.appContext.getString(R.string.files_pushed),
+                    message = graph.appContext.getString(
+                        if (upToDate) R.string.files_push_uptodate else R.string.files_pushed,
+                    ),
                     messageIsError = false,
                 )
             }
@@ -564,6 +631,7 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
                     GitAuth.environment(clean, graph.settings.gitConfig().githubToken),
                 )
                 if (result.exitCode != 0) throw gitFailure(R.string.git_action_pull, result)
+                AppLog.info("Git", "fast-forwarded $branch on ${GitAuth.cleanUrl(remote.output.trim())}")
                 _state.update {
                     it.copy(
                         message = graph.appContext.getString(R.string.files_pulled),

@@ -5,6 +5,7 @@ import android.system.Os
 import android.system.OsConstants
 import io.github.oustery.opencodephone.core.model.BootstrapPhase
 import io.github.oustery.opencodephone.core.model.BootstrapState
+import io.github.oustery.opencodephone.core.model.AppLog
 import io.github.oustery.opencodephone.core.model.DeviceAbi
 import io.github.oustery.opencodephone.core.model.Pins
 import kotlinx.coroutines.CancellationException
@@ -126,6 +127,7 @@ class BootstrapManager(
     }
 
     private fun log(line: String) {
+        AppLog.info("Bootstrap", line)
         val stamped = "[${dateFormat.format(Date())}] $line"
         _state.update { it.copy(log = (it.log + stamped).takeLast(LOG_LIMIT)) }
         runCatching {

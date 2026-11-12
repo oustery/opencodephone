@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.oustery.opencodephone.AppGraph
 import io.github.oustery.opencodephone.core.linuxenv.ServerState
+import io.github.oustery.opencodephone.core.model.AppLog
 import io.github.oustery.opencodephone.core.linuxenv.PRootCommand
 import io.github.oustery.opencodephone.core.model.AgentInfo
 import io.github.oustery.opencodephone.core.model.MessageWithParts
@@ -255,6 +256,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             } catch (e: Exception) {
                 // Convenience affordance (F-006): must not break the
                 // connection — but the failure must not stay invisible.
+                AppLog.warn("Chat", "agent list unavailable", e)
                 _state.update {
                     it.copy(
                         notice = graph.appContext.getString(
@@ -272,6 +274,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            AppLog.error("Chat", "connection failed", e)
             _state.update {
                 it.copy(
                     connection = ChatConnection.ERROR,
@@ -343,6 +346,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            AppLog.warn("Chat", "todo plan unavailable", e)
             _state.update {
                 it.copy(
                     notice = graph.appContext.getString(
@@ -363,6 +367,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            AppLog.warn("Chat", "pending questions unavailable", e)
             _state.update {
                 it.copy(
                     notice = graph.appContext.getString(
@@ -415,6 +420,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
                     if (ticket != endpointEpoch) return@launch
+                    AppLog.warn("Chat", "event stream interrupted (attempt $attempts)", e)
                     _state.update { it.copy(connection = ChatConnection.ERROR, error = errorText(e), busy = false) }
                     if (e is OpenCodeApiException && e.code in listOf(401, 403)) return@launch
                 }
@@ -543,6 +549,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            AppLog.error("Chat", "session reload failed", e)
             _state.update { it.copy(error = errorText(e)) }
         }
     }

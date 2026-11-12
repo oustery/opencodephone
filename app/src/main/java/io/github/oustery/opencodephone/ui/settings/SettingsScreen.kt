@@ -73,6 +73,8 @@ import io.github.oustery.opencodephone.BuildConfig
 import io.github.oustery.opencodephone.NavMenuButton
 import io.github.oustery.opencodephone.R
 import io.github.oustery.opencodephone.ScreenBody
+import io.github.oustery.opencodephone.core.designsystem.OcConfirmDialog
+import io.github.oustery.opencodephone.core.designsystem.OcDialogTone
 import io.github.oustery.opencodephone.core.designsystem.AppFonts
 import io.github.oustery.opencodephone.core.designsystem.CodeTypography
 import io.github.oustery.opencodephone.core.designsystem.OcChipTone
@@ -587,22 +589,18 @@ private fun ProvidersPage(vm: SettingsViewModel, state: SettingsUiState, onBack:
     pendingKeyRemoval?.let { providerId ->
         // Destructive action confirmation (UI audit B2): erasing stored
         // credentials must never be a single tap.
-        AlertDialog(
-            onDismissRequest = { pendingKeyRemoval = null },
-            title = { Text(stringResource(R.string.settings_providers_remove_title)) },
-            text = { Text(stringResource(R.string.settings_providers_remove_warning, providerId)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        pendingKeyRemoval = null
-                        vm.removeProviderKey(providerId)
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text(stringResource(R.string.action_delete)) }
+        OcConfirmDialog(
+            title = stringResource(R.string.settings_providers_remove_title),
+            text = stringResource(R.string.settings_providers_remove_warning, providerId),
+            confirmLabel = stringResource(R.string.action_delete),
+            dismissLabel = stringResource(R.string.action_cancel),
+            icon = painterResource(R.drawable.ic_delete),
+            tone = OcDialogTone.DESTRUCTIVE,
+            onConfirm = {
+                pendingKeyRemoval = null
+                vm.removeProviderKey(providerId)
             },
-            dismissButton = {
-                TextButton(onClick = { pendingKeyRemoval = null }) { Text(stringResource(R.string.action_cancel)) }
-            },
+            onDismiss = { pendingKeyRemoval = null },
         )
     }
     state.accountAuth?.let { auth ->
@@ -613,19 +611,17 @@ private fun ProvidersPage(vm: SettingsViewModel, state: SettingsUiState, onBack:
                 onOpen = { vm.openVerificationUrl(auth.verificationUrl) },
                 onCancel = { vm.dismissAccountAuth() },
             )
-            is AccountAuthUi.Failed -> AlertDialog(
-                onDismissRequest = { vm.dismissAccountAuth() },
-                title = { Text(stringResource(R.string.settings_account_failed_title)) },
-                text = { Text(auth.message) },
-                confirmButton = {
-                    Button(onClick = {
-                        vm.dismissAccountAuth()
-                        vm.startConsoleSignIn()
-                    }) { Text(stringResource(R.string.settings_account_retry)) }
+            is AccountAuthUi.Failed -> OcConfirmDialog(
+                title = stringResource(R.string.settings_account_failed_title),
+                text = auth.message,
+                confirmLabel = stringResource(R.string.settings_account_retry),
+                dismissLabel = stringResource(R.string.action_cancel),
+                icon = painterResource(R.drawable.ic_shield),
+                onConfirm = {
+                    vm.dismissAccountAuth()
+                    vm.startConsoleSignIn()
                 },
-                dismissButton = {
-                    TextButton(onClick = { vm.dismissAccountAuth() }) { Text(stringResource(R.string.action_cancel)) }
-                },
+                onDismiss = { vm.dismissAccountAuth() },
             )
         }
     }
@@ -644,19 +640,17 @@ private fun ProvidersPage(vm: SettingsViewModel, state: SettingsUiState, onBack:
                 onCode = { vm.submitProviderOAuthCode(it) },
                 onDismiss = { vm.dismissProviderOAuth() },
             )
-            is ProviderOAuthUi.Failed -> AlertDialog(
-                onDismissRequest = { vm.dismissProviderOAuth() },
-                title = { Text(stringResource(R.string.settings_account_failed_title)) },
-                text = { Text(oauth.message) },
-                confirmButton = {
-                    Button(onClick = {
-                        vm.dismissProviderOAuth()
-                        vm.startProviderOAuth(oauth.providerId)
-                    }) { Text(stringResource(R.string.settings_account_retry)) }
+            is ProviderOAuthUi.Failed -> OcConfirmDialog(
+                title = stringResource(R.string.settings_account_failed_title),
+                text = oauth.message,
+                confirmLabel = stringResource(R.string.settings_account_retry),
+                dismissLabel = stringResource(R.string.action_cancel),
+                icon = painterResource(R.drawable.ic_shield),
+                onConfirm = {
+                    vm.dismissProviderOAuth()
+                    vm.startProviderOAuth(oauth.providerId)
                 },
-                dismissButton = {
-                    TextButton(onClick = { vm.dismissProviderOAuth() }) { Text(stringResource(R.string.action_cancel)) }
-                },
+                onDismiss = { vm.dismissProviderOAuth() },
             )
         }
     }
@@ -910,20 +904,17 @@ private fun EnvironmentPage(vm: SettingsViewModel, state: SettingsUiState, onBac
     }
 
     if (state.showReinstallConfirm) {
-        AlertDialog(
-            onDismissRequest = { vm.showReinstallConfirm(false) },
-            title = { Text(stringResource(R.string.settings_env_reinstall)) },
-            text = { Text(stringResource(R.string.settings_env_reinstall_confirm)) },
-            confirmButton = {
-                Button(onClick = { vm.reinstallEnvironment() }) {
-                    Text(stringResource(R.string.settings_env_reinstall))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { vm.showReinstallConfirm(false) }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
+        // Deleting the whole Debian environment is the most destructive
+        // action in the app — destructive tone is mandatory here.
+        OcConfirmDialog(
+            title = stringResource(R.string.settings_env_reinstall),
+            text = stringResource(R.string.settings_env_reinstall_confirm),
+            confirmLabel = stringResource(R.string.settings_env_reinstall),
+            dismissLabel = stringResource(R.string.action_cancel),
+            icon = painterResource(R.drawable.ic_delete),
+            tone = OcDialogTone.DESTRUCTIVE,
+            onConfirm = { vm.reinstallEnvironment() },
+            onDismiss = { vm.showReinstallConfirm(false) },
         )
     }
 }
@@ -1073,48 +1064,39 @@ private fun AppPage(
     }
 
     if (state.showImportConfirm) {
-        AlertDialog(
-            onDismissRequest = { vm.dismissImportConfirm() },
-            title = { Text(stringResource(R.string.settings_import_confirm_title)) },
-            text = { Text(stringResource(R.string.settings_import_confirm_body)) },
-            confirmButton = {
-                Button(onClick = { vm.confirmImport() }) {
-                    Text(stringResource(R.string.settings_backup_import))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { vm.dismissImportConfirm() }) { Text(stringResource(R.string.action_cancel)) }
-            },
+        OcConfirmDialog(
+            title = stringResource(R.string.settings_import_confirm_title),
+            text = stringResource(R.string.settings_import_confirm_body),
+            confirmLabel = stringResource(R.string.settings_backup_import),
+            dismissLabel = stringResource(R.string.action_cancel),
+            icon = painterResource(R.drawable.ic_file),
+            onConfirm = { vm.confirmImport() },
+            onDismiss = { vm.dismissImportConfirm() },
         )
     }
     confirmClear?.let { kind ->
-        AlertDialog(
-            onDismissRequest = { confirmClear = null },
-            title = { Text(stringResource(R.string.settings_data_clear_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        when (kind) {
-                            "drafts" -> R.string.settings_data_confirm_drafts
-                            "uploads" -> R.string.settings_data_confirm_uploads
-                            else -> R.string.settings_data_confirm_cache
-                        },
-                    ),
-                )
+        OcConfirmDialog(
+            title = stringResource(R.string.settings_data_clear_title),
+            text = stringResource(
+                when (kind) {
+                    "drafts" -> R.string.settings_data_confirm_drafts
+                    "uploads" -> R.string.settings_data_confirm_uploads
+                    else -> R.string.settings_data_confirm_cache
+                },
+            ),
+            confirmLabel = stringResource(R.string.action_delete),
+            dismissLabel = stringResource(R.string.action_cancel),
+            icon = painterResource(R.drawable.ic_delete),
+            tone = OcDialogTone.DESTRUCTIVE,
+            onConfirm = {
+                when (kind) {
+                    "drafts" -> vm.clearDrafts()
+                    "uploads" -> vm.clearUploads()
+                    else -> vm.clearInstallerCache()
+                }
+                confirmClear = null
             },
-            confirmButton = {
-                Button(onClick = {
-                    when (kind) {
-                        "drafts" -> vm.clearDrafts()
-                        "uploads" -> vm.clearUploads()
-                        else -> vm.clearInstallerCache()
-                    }
-                    confirmClear = null
-                }) { Text(stringResource(R.string.action_delete)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmClear = null }) { Text(stringResource(R.string.action_cancel)) }
-            },
+            onDismiss = { confirmClear = null },
         )
     }
 }

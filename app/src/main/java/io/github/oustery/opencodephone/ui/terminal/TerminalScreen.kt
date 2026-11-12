@@ -60,6 +60,8 @@ import io.github.oustery.opencodephone.AppGraph
 import io.github.oustery.opencodephone.R
 import io.github.oustery.opencodephone.ScreenBody
 import io.github.oustery.opencodephone.ScreenHeader
+import io.github.oustery.opencodephone.core.designsystem.OcConfirmDialog
+import io.github.oustery.opencodephone.core.designsystem.OcDialogTone
 import io.github.oustery.opencodephone.core.designsystem.CodeTypography
 import io.github.oustery.opencodephone.core.designsystem.OcChipTone
 import io.github.oustery.opencodephone.core.designsystem.OcEmptyState
@@ -106,21 +108,20 @@ fun TerminalScreen(graph: AppGraph) {
         )
 
         if (confirmRestart) {
-            AlertDialog(
-                onDismissRequest = { confirmRestart = false },
-                title = { Text(stringResource(R.string.terminal_restart)) },
-                text = { Text(stringResource(R.string.terminal_restart_confirm)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        confirmRestart = false
-                        vm.restart()
-                    }) { Text(stringResource(R.string.terminal_restart)) }
+            // Restarting kills the running shell and its state — destructive
+            // tone keeps that consequence visible (modal-dialogs pass).
+            OcConfirmDialog(
+                title = stringResource(R.string.terminal_restart),
+                text = stringResource(R.string.terminal_restart_confirm),
+                confirmLabel = stringResource(R.string.terminal_restart),
+                dismissLabel = stringResource(R.string.action_cancel),
+                icon = painterResource(R.drawable.ic_refresh),
+                tone = OcDialogTone.DESTRUCTIVE,
+                onConfirm = {
+                    confirmRestart = false
+                    vm.restart()
                 },
-                dismissButton = {
-                    TextButton(onClick = { confirmRestart = false }) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
+                onDismiss = { confirmRestart = false },
             )
         }
 

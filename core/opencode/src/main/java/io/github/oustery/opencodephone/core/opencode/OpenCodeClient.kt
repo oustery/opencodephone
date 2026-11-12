@@ -23,6 +23,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
+import io.github.oustery.opencodephone.core.model.AppLog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -183,6 +184,9 @@ class OpenCodeClient(
         transport(snapshot).newCall(request).consumeCancellable { response: Response ->
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
+                // Every server rejection lands in the diagnostic log with the
+                // full context the UI message bar truncates.
+                AppLog.warn("OpenCode", "HTTP ${response.code} $method $path: ${text.take(200)}")
                 throw OpenCodeApiException(
                     response.code,
                     "HTTP ${response.code} ${method} $path: ${text.take(300)}",
@@ -190,6 +194,7 @@ class OpenCodeClient(
             }
             val contentType = response.header("Content-Type").orEmpty().lowercase()
             if (text.isNotBlank() && (contentType.contains("text/html") || text.trimStart().startsWith("<"))) {
+                AppLog.warn("OpenCode", "HTML instead of JSON at $path (wrong server?)")
                 throw OpenCodeApiException(
                     response.code,
                     "Expected OpenCode V1 JSON at $path, but received HTML. " +
@@ -211,6 +216,7 @@ class OpenCodeClient(
         return try {
             json.decodeFromString(serializer, text)
         } catch (e: SerializationException) {
+            AppLog.warn("OpenCode", "unparsable V1 JSON for $path: ${text.take(120)}")
             throw OpenCodeApiException(-1, "Invalid OpenCode V1 JSON response for $path. Check the server version and address.")
         }
     }
