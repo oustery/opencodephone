@@ -392,6 +392,7 @@
     <string name="chat_notice_plan_items">%1$d plan item(s) could not be parsed</string>
     <string name="chat_notice_dropped">%1$d message(s) could not be parsed and are hidden</string>
     <string name="chat_notice_inline_failed">Attachments not inlined: %1$s</string>
+    <string name="chat_notice_session_gone">The server no longer knows this conversation (restart?). Send a message to start a fresh one.</string>
     <string name="chat_notice_question_reject_failed">Could not reject the question: %1$s</string>
     <string name="chat_error_permission_parse">Permission request could not be parsed; abort the task if the agent stays blocked (%1$s)</string>
     <string name="chat_error_question_parse">Agent question could not be parsed; abort the task if it stays blocked (%1$s)</string>
