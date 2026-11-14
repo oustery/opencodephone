@@ -27,9 +27,13 @@ object AppLog {
         val message: String,
         /** Single-line `Throwable` summary, when one was attached. */
         val error: String? = null,
+        /** How many consecutive identical records collapsed into this line. */
+        val repeat: Int = 1,
     )
 
     const val CAPACITY = 1500
+    private const val MESSAGE_CAP = 600
+    private const val ERROR_CAP = 300
 
     private val lock = Any()
     private val buffer = ArrayDeque<Entry>(CAPACITY)
@@ -60,17 +64,45 @@ object AppLog {
             timestampMs = System.currentTimeMillis(),
             level = level,
             tag = tag.take(24),
-            message = message.take(600),
-            error = throwable?.let { "${it.javaClass.simpleName}: ${it.message.orEmpty().take(300)}" },
+            message = truncate(message, MESSAGE_CAP),
+            error = throwable?.let {
+                "${it.javaClass.simpleName}: ${truncate(it.message.orEmpty(), ERROR_CAP)}"
+            },
         )
         synchronized(lock) {
-            buffer.addLast(entry)
+            // Collapse consecutive identical records (retry storms, per-event
+            // refetches of the same dead endpoint) into one line with a
+            // repeat counter, so the tail stays readable and the diagnostics
+            // export does not fill with a wall of identical warnings.
+            val last = buffer.lastOrNull()
+            if (last != null && last.level == level && last.tag == entry.tag &&
+                last.message == entry.message && last.error == entry.error
+            ) {
+                buffer.removeLast()
+                buffer.addLast(entry.copy(repeat = last.repeat + 1, timestampMs = entry.timestampMs))
+            } else {
+                buffer.addLast(entry)
+            }
             while (buffer.size > CAPACITY) buffer.removeFirst()
             // Publish oldest-first for a natural reading order; the copy is
             // small (≤ CAPACITY) and appends are rare relative to UI frames.
             _entries.value = buffer.toList()
         }
         runCatching { sink?.invoke(entry) }
+    }
+
+    /**
+     * Keep both ends of over-long records: for command lines (git, shell) the
+     * tail carries the actual subcommand after long `-c …` option blocks, for
+     * response bodies the head carries the status. A head-only cut dropped
+     * exactly the informative half of long git commands.
+     */
+    private fun truncate(text: String, cap: Int): String {
+        if (text.length <= cap) return text
+        val cut = text.length - cap
+        val head = text.take(cap * 2 / 3)
+        val tail = text.takeLast(cap / 4)
+        return "$head …[cut $cut chars]… $tail"
     }
 
     fun clear() {
@@ -88,7 +120,8 @@ object AppLog {
             .filter { it.level >= minLevel }
             .joinToString("\n") { e ->
                 val error = e.error?.let { " — $it" }.orEmpty()
-                "${format.format(java.util.Date(e.timestampMs))} ${e.level.name.first()}/${e.tag}: ${e.message}$error"
+                val repeat = if (e.repeat > 1) " (×${e.repeat})" else ""
+                "${format.format(java.util.Date(e.timestampMs))} ${e.level.name.first()}/${e.tag}: ${e.message}$error$repeat"
             }
     }
 }

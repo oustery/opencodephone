@@ -319,7 +319,9 @@ private fun LogRow(entry: AppLog.Entry, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    time,
+                    // Collapsed consecutive duplicates (AppLog dedupe) show
+                    // how many identical records this line stands for.
+                    if (entry.repeat > 1) "$time ×${entry.repeat}" else time,
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = AppFonts.Code,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
