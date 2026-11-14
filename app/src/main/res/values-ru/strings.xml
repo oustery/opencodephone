@@ -232,6 +232,10 @@
     <string name="logs_level_info">Инфо</string>
     <string name="logs_level_warn">Предупр.</string>
     <string name="logs_level_error">Ошибки</string>
+    <string name="logs_copied">Журнал скопирован в буфер обмена</string>
+    <string name="logs_entry_copied">Запись скопирована</string>
+    <string name="logs_search_clear">Очистить поиск</string>
+    <string name="logs_jump_bottom">К последней записи</string>
     <string name="settings_env_header">Окружение Linux</string>
     <string name="settings_env_bootstrap">Установка</string>
     <string name="settings_env_workspace">Рабочая папка</string>
