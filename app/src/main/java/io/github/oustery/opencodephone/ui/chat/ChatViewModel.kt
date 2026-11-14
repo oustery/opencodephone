@@ -315,6 +315,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     private suspend fun loadSessions() {
         val sessions = activeClient.listSessions(limit = CHAT_SESSIONS_LIMIT)
+            // Child sessions are agent subtask conversations, not chat
+            // targets — activating one as the main chat strands the user
+            // in an empty timeline.
+            .filter { it.parentId == null }
             .filterNot { it.id in deadSessions }
             .sortedByDescending { it.time?.created ?: 0L }
         _state.update { state ->
@@ -370,7 +374,22 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 messages = if (wasActive) emptyList() else state.messages,
                 messagesLoading = if (wasActive) false else state.messagesLoading,
                 revertMarker = if (wasActive) null else state.revertMarker,
+                notice = if (wasActive && sessions.isEmpty()) {
+                    graph.appContext.getString(
+                        io.github.oustery.opencodephone.R.string.chat_notice_session_gone,
+                    )
+                } else state.notice,
             )
+        }
+        // A bare id switch would strand an empty chat: the replacement
+        // session needs its own messages and plan loaded (its history is on
+        // the server; only this session was lost).
+        val next = _state.value.activeSessionId
+        if (next != null && next != sessionId && next !in deadSessions) {
+            viewModelScope.launch {
+                loadMessages(next)
+                loadTodosQuiet(next)
+            }
         }
     }
 
@@ -473,7 +492,21 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     private suspend fun handleEvent(event: ServerEvent) {
         when {
-            event.type.startsWith("message.") -> reloadSignal.tryEmit(Unit)
+            event.type.startsWith("message.") -> {
+                // The stream also carries responses for sessions the app is
+                // not showing (the active one just died on the server).
+                // With nothing active, adopt the sender so the answer is
+                // displayed instead of vanishing into an empty chat.
+                // All session-scoped events carry `sessionID` at the top of
+                // `properties` (verified against the pinned 1.19.5 server).
+                val props = event.properties as? JsonObject
+                val sender = OcJson.run { props?.optString("sessionID") }
+                if (sender != null && sender !in deadSessions && _state.value.activeSessionId == null) {
+                    AppLog.debug("Chat", "adopting session from message event: $sender")
+                    _state.update { it.copy(activeSessionId = sender, messagesLoading = true) }
+                }
+                reloadSignal.tryEmit(Unit)
+            }
 
             event.type == "session.status" -> {
                 val props = event.properties as? JsonObject
@@ -579,6 +612,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private suspend fun loadSessionsQuiet() {
         try {
             val sessions = activeClient.listSessions(limit = CHAT_SESSIONS_LIMIT)
+                .filter { it.parentId == null }
                 .filterNot { it.id in deadSessions }
                 .sortedByDescending { it.time?.created ?: 0L }
             _state.update { st ->
@@ -864,7 +898,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         historyWindow = CHAT_MESSAGE_PAGE
         // Attribute the session to the selected project (F-001): the title
         // names the repository so the sessions list stays recognizable.
-        val projectName = graph.selectedProject.value?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+        val projectName = newSessionTitle()
         viewModelScope.launch {
             try {
                 val session = client.createSession(projectName)
@@ -987,10 +1021,13 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
+    /** Title for a new conversation; names the selected project (F-001). */
+    private fun newSessionTitle(): String? =
+        graph.selectedProject.value?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+
     fun send() {
         val current = _state.value
         if (current.busy) return
-        val sessionId = current.activeSessionId ?: return
         val text = current.draft.trim()
         if (text.isEmpty() && current.attachments.isEmpty()) return
         if (current.modelSelection == null) {
@@ -1022,6 +1059,23 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val ticket = endpointEpoch
         viewModelScope.launch {
             try {
+                // With no active session (the previous one died on the
+                // server) a silent no-op looked exactly like "the AI never
+                // answers". Recover by starting a fresh conversation for the
+                // same draft instead of dropping the input on the floor.
+                val sessionId = _state.value.activeSessionId ?: run {
+                    val created = client.createSession(newSessionTitle())
+                    AppLog.info("Chat", "no active session — created replacement ${created.id}")
+                    _state.update {
+                        it.copy(
+                            activeSessionId = created.id,
+                            messages = emptyList(),
+                            todos = emptyList(),
+                            revertMarker = null,
+                        )
+                    }
+                    created.id
+                }
                 val selection = current.modelSelection
                 val inlineText = if (remote && sentAttachments.isNotEmpty()) {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

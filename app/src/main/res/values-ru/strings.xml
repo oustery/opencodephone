@@ -392,6 +392,7 @@
     <string name="chat_notice_plan_items">Не удалось разобрать пунктов плана: %1$d</string>
     <string name="chat_notice_dropped">Сообщений не разобрано и скрыто: %1$d</string>
     <string name="chat_notice_inline_failed">Вложения не подключены: %1$s</string>
+    <string name="chat_notice_session_gone">Сервер больше не знает этот диалог (перезапуск?). Отправьте сообщение — начнётся новый.</string>
     <string name="chat_notice_question_reject_failed">Не удалось отклонить вопрос: %1$s</string>
     <string name="chat_error_permission_parse">Не удалось разобрать запрос разрешения; прервите задачу, если агент остаётся заблокированным (%1$s)</string>
     <string name="chat_error_question_parse">Не удалось разобрать вопрос агента; прервите задачу, если она остаётся заблокированной (%1$s)</string>
