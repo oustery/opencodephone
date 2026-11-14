@@ -7,12 +7,11 @@ import org.junit.Test
 class AppLogTest {
 
     @Test fun `buffer is bounded and keeps the newest entries in order`() {
-        // The global buffer may already carry entries from other tests;
-        // record the watermark and only reason about what this test adds.
-        val before = AppLog.entries.value.size
+        // Self-sufficient start: the buffer is a global shared by all tests.
+        AppLog.clear()
         repeat(AppLog.CAPACITY + 50) { AppLog.info("Test", "line $it") }
         val after = AppLog.entries.value
-        assertEquals(before + AppLog.CAPACITY, after.size)
+        assertEquals(AppLog.CAPACITY, after.size)
         val lines = after.map { it.message }
         assertTrue(lines.contains("line 50"))
         assertTrue(lines.contains("line ${AppLog.CAPACITY + 49}"))
@@ -45,5 +44,43 @@ class AppLogTest {
         assertTrue(AppLog.entries.value.isEmpty())
         AppLog.info("Test", "after clear")
         assertEquals(1, AppLog.entries.value.size)
+    }
+
+    @Test fun `consecutive identical records collapse into one entry with a repeat counter`() {
+        AppLog.clear()
+        repeat(5) { AppLog.warn("Storm", "HTTP 404 GET /session/x/todo: Session not found") }
+        AppLog.info("Storm", "different record breaks the run")
+        repeat(2) { AppLog.warn("Storm", "HTTP 404 GET /session/x/todo: Session not found") }
+        val entries = AppLog.entries.value
+        assertEquals(3, entries.size)
+        assertEquals(5, entries[0].repeat)
+        assertEquals(1, entries[1].repeat)
+        assertEquals(2, entries[2].repeat)
+        // The export marks collapsed runs, so a copied log shows the scale.
+        assertTrue(AppLog.exportText().contains("(×5)"))
+        // A different level with the same text is NOT collapsed.
+        AppLog.clear()
+        AppLog.warn("Storm", "same text")
+        AppLog.error("Storm", "same text")
+        assertEquals(2, AppLog.entries.value.size)
+    }
+
+    @Test fun `over-long messages keep head and tail`() {
+        AppLog.clear()
+        val cmd = "a".repeat(500) + " git push origin main " + "b".repeat(500)
+        AppLog.debug("Git", cmd)
+        val message = AppLog.entries.value.single().message
+        assertTrue("head kept", message.startsWith("aaaa"))
+        assertTrue("tail kept — the actual subcommand must survive", message.endsWith("bbbb"))
+        assertTrue("cut marker", message.contains("…[cut"))
+        assertTrue("still bounded", message.length <= 600)
+    }
+
+    @Test fun `error summaries are truncated the same way`() {
+        AppLog.clear()
+        AppLog.error("Test", "boom", IllegalStateException("x".repeat(800)))
+        val summary = checkNotNull(AppLog.entries.value.single().error)
+        assertTrue(summary.contains("…[cut"))
+        assertTrue(summary.length <= 320)
     }
 }

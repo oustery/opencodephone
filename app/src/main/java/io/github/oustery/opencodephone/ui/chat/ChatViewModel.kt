@@ -149,6 +149,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private var endpointEpoch = 0L
     private var activeClient = graph.client
 
+    // Session ids the server answered with 404 "Session not found" (server
+    // restarted while the client kept stale state). Refetching them only
+    // produced a 404 storm on every reload; they are skipped and purged.
+    private val deadSessions = mutableSetOf<String>()
+
     private val reloadSignal = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
 
     // Loaded history window (messages); grows by one page per "load earlier".
@@ -210,6 +215,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                     eventsJob?.cancel()
                     messagesJob?.cancel()
                     endpointEpoch++
+                    // A different endpoint may know sessions this one lost.
+                    deadSessions.clear()
                     if (activeClient !== graph.client) {
                         activeClient = graph.client
                         _state.update { ChatUiState(draft = it.draft, attachments = it.attachments) }
@@ -307,7 +314,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     private suspend fun loadSessions() {
-        val sessions = activeClient.listSessions(limit = CHAT_SESSIONS_LIMIT).sortedByDescending { it.time?.created ?: 0L }
+        val sessions = activeClient.listSessions(limit = CHAT_SESSIONS_LIMIT)
+            .filterNot { it.id in deadSessions }
+            .sortedByDescending { it.time?.created ?: 0L }
         _state.update { state ->
             val active = state.activeSessionId?.takeIf { id -> sessions.any { it.id == id } }
                 ?: sessions.firstOrNull()?.id
@@ -338,14 +347,46 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         _state.update { it.copy(agentName = name?.takeIf { n -> n.isNotBlank() }) }
     }
 
+    /** The server no longer knows this session (404 "Session not found"). */
+    private fun sessionNotFound(e: Exception) =
+        e is OpenCodeApiException && e.code == 404 && e.message.orEmpty().contains("Session not found")
+
+    /**
+     * The active session died (server restart with stale client state).
+     * Drop it once — refetching only repeated the same 404s on every reload —
+     * purge it from the sidebar and fall back to the next available session.
+     */
+    private fun markSessionGone(sessionId: String) {
+        deadSessions += sessionId
+        AppLog.warn("Chat", "session gone (404) — dropped: $sessionId")
+        _state.update { state ->
+            val sessions = state.sessions.filterNot { it.id == sessionId }
+            val wasActive = state.activeSessionId == sessionId
+            state.copy(
+                sessions = sessions,
+                activeSessionId = if (wasActive) sessions.firstOrNull()?.id else state.activeSessionId,
+                busy = if (wasActive) false else state.busy,
+                todos = if (wasActive) emptyList() else state.todos,
+                messages = if (wasActive) emptyList() else state.messages,
+                messagesLoading = if (wasActive) false else state.messagesLoading,
+                revertMarker = if (wasActive) null else state.revertMarker,
+            )
+        }
+    }
+
     /** Fetch the agent's task plan; todos are optional (F-010), failures surface as a notice. */
     private suspend fun loadTodosQuiet(sessionId: String) {
+        if (sessionId in deadSessions) return
         try {
             val todos = activeClient.sessionTodos(sessionId)
             if (_state.value.activeSessionId == sessionId) _state.update { it.copy(todos = todos) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (sessionNotFound(e)) {
+                markSessionGone(sessionId)
+                return
+            }
             AppLog.warn("Chat", "todo plan unavailable", e)
             _state.update {
                 it.copy(
@@ -538,6 +579,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private suspend fun loadSessionsQuiet() {
         try {
             val sessions = activeClient.listSessions(limit = CHAT_SESSIONS_LIMIT)
+                .filterNot { it.id in deadSessions }
                 .sortedByDescending { it.time?.created ?: 0L }
             _state.update { st ->
                 st.copy(
@@ -555,6 +597,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     private suspend fun loadMessages(sessionId: String, required: Boolean = false) {
+        if (sessionId in deadSessions) return
         val ticket = endpointEpoch
         val client = activeClient
         try {
@@ -593,6 +636,13 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            // A session the server dropped must not surface as a chat error —
+            // it is purged and the next session takes over (markSessionGone).
+            if (sessionNotFound(e)) {
+                markSessionGone(sessionId)
+                _state.update { it.copy(messagesLoading = false) }
+                return
+            }
             _state.update { it.copy(error = errorText(e), messagesLoading = false) }
             if (required) throw e
         }

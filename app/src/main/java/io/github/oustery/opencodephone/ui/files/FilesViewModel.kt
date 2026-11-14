@@ -368,24 +368,36 @@ class FilesViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     /**
-     * Git diagnostics: stdout+stderr are merged by the runtime, and the last
-     * non-blank line is git's `fatal:`/`error:` explanation. A bare exit code
-     * ("Clone failed (exit 128)") tells the user nothing — the reason must
-     * reach the message bar (exception audit).
+     * Git diagnostics: stdout+stderr are merged by the runtime. A bare exit
+     * code ("Clone failed (exit 128)") tells the user nothing — the reason
+     * must reach the message bar (exception audit).
      */
     private fun gitFailure(actionRes: Int, result: ExecResult): IllegalStateException {
-        // The last non-blank line of the merged output is git's own
-        // `fatal:`/`error:` explanation; a bare exit code tells the user
-        // nothing (exception audit).
-        val detail = result.output.trim().lineSequence()
-            .lastOrNull { it.isNotBlank() }?.take(300).orEmpty()
-        AppLog.warn("Git", "exit ${result.exitCode} on ${detail.ifBlank { "no output" }}")
+        val lines = result.output.trim().lineSequence().filter { it.isNotBlank() }.toList()
+        // Both ends: git prints the verdict last ("error: failed to push some
+        // refs…") but the actual reason earlier ("hint: Updates were
+        // rejected…", "! [rejected] … (non-fast-forward)"). A last-line-only
+        // detail reduced a rejected push to its bare conclusion — and some
+        // pull failures to a bare "HEAD'" fragment — hiding the cause.
+        val detail = when (lines.size) {
+            0 -> ""
+            1 -> lines[0].take(300)
+            else -> lines.first().take(200) + " … " + lines.last().take(200)
+        }
+        // The diagnostics screen gets the whole tail — the message bar shows
+        // the summary, the log keeps the evidence.
+        AppLog.warn(
+            "Git",
+            "exit ${result.exitCode} on ${result.output.trim().takeLast(500).ifBlank { "no output" }}",
+        )
         val context = graph.appContext
         val base = context.getString(R.string.git_action_failed, context.getString(actionRes), result.exitCode) +
             if (detail.isEmpty()) "" else ": $detail"
-        // Every recognised failure class gets an actionable hint so the next
-        // step is obvious instead of a dead end.
-        val hint = hintFor(detail)?.let { "\n${context.getString(it)}" }.orEmpty()
+        // Classify against the full output (hints sit on their own lines,
+        // away from the first/last summary lines).
+        val hint = hintFor(detail + "\n" + result.output.take(1200))
+            ?.let { "\n${context.getString(it)}" }
+            .orEmpty()
         return IllegalStateException(base + hint)
     }
 
