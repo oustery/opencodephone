@@ -265,6 +265,10 @@
     <string name="logs_level_info">Info</string>
     <string name="logs_level_warn">Warn</string>
     <string name="logs_level_error">Errors</string>
+    <string name="logs_copied">Log copied to clipboard</string>
+    <string name="logs_entry_copied">Entry copied</string>
+    <string name="logs_search_clear">Clear search</string>
+    <string name="logs_jump_bottom">Jump to latest</string>
     <string name="settings_env_header">Linux environment</string>
     <string name="settings_env_bootstrap">Bootstrap</string>
     <string name="settings_env_workspace">Workspace</string>
